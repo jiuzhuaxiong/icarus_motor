@@ -7,7 +7,5 @@ SRC=./BUILD/controller.bin
 
 TARGET=$VOLUMEDIR/$MOUNT
 
-echo Cleaning $TARGET and putting $SRC
-
-rm -rf $TARGET/*
-cp $SRC $TARGET
+echo cp $SRC $TARGET
+cp $SRC $TARGET/

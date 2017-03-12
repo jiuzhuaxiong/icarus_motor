@@ -30,7 +30,7 @@ Makefile : ;
 clean :
 	$(call RM,$(OBJDIR))
 install:
-	./install.sh
+	+@./install.sh
 
 else
 
