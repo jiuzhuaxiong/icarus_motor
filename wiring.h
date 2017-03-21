@@ -35,13 +35,13 @@ State   L1  L2  L3
 DigitalOut led1(LED1);
 
 // Photointerrupter inputs
-DigitalIn I1(I1pin);
-DigitalIn I2(I2pin);
-DigitalIn I3(I3pin);
+InterruptIn I1(I1pin);
+InterruptIn I2(I2pin);
+InterruptIn I3(I3pin);
 
 // Quadrature inputs
 InterruptIn CHA(CHApin);
-InterruptIn CHB(CHBpin);
+DigitalIn CHB(CHBpin);
 
 // Motor Drive outputs
 DigitalOut L1L(L1Lpin);
@@ -55,7 +55,7 @@ DigitalOut L3H(L3Hpin);
 Serial pc(SERIAL_TX, SERIAL_RX);
 
 // Debug logger
-#define DEBUG_LEVEL 0
+#define DEBUG_LEVEL 1
 
 #if DEBUG_LEVEL    
 #define PRINT_DEBUG(...)    printf(__VA_ARGS__);\
