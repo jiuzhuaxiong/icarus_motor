@@ -26,7 +26,14 @@ volatile int tick = 0;
 
 volatile Timer t;
 
-int period = 0.5;
+volatile int8_t rotorState;
+
+volatile float velocity = 0;
+
+float period = 0.5;
+
+Thread thread_v;
+
 // int pwm_on = 0.5;
 
 // ======================================== FUNCTION DEFINTIONS ========================================
@@ -75,27 +82,57 @@ int8_t motorHome() {
 
 inline void CHA_rise_isr() {
     tick -= INC[CHB.read()];
+    // PRINT_DEBUG("Tick: %d",tick)
 }
 
-inline void CHA_fall_isr() {
-    tick += INC[CHB.read()];
-}
-
-inline void CHB_rise_isr() {
-    tick += INC[CHA.read()];
-}
-
-inline void CHB_fall_isr() {
-    tick -= INC[CHA.read()];
-    // Maybe faster?
-    // int val = CHA.read();
-    // tick += (1>>val);
-    // tick -= (1>>!val);
-}
-
-// inline int readEncoder(){
-//     return tick
+// inline void CHA_fall_isr() {
+//     tick += INC[CHB.read()];
 // }
+
+// inline void CHB_rise_isr() {
+//     tick += INC[CHA.read()];
+// }
+
+// inline void CHB_fall_isr() {
+//     tick -= INC[CHA.read()];
+//     // Maybe faster?
+//     // int val = CHA.read();
+//     // tick += (1>>val);
+//     // tick -= (1>>!val);
+// }
+
+// inline void I1_rise_isr() {
+// }
+// inline void I1_fall_isr() {
+
+// }
+
+// inline void I2_rise_isr() {
+
+// }
+// inline void I2_fall_isr() {
+
+// }
+
+// inline void I3_rise_isr() {
+
+
+// }
+// inline void I3_fall_isr() {
+
+// }
+
+volatile count;
+
+void velocity_thread(){
+    int t_before, t_after;
+    while(true){
+        t_before = tick;
+        Thread::wait(100);
+        t_after = tick;
+        velocity = 10*(t_before-t_after)/117;
+    }
+}
 
 
 inline void loop(){
@@ -108,19 +145,6 @@ inline void loop(){
         // wait(0.5);
         // wait((1-pwm_on)*period/6);  
     }
-    // motorOut(2);
-    // wait(1);
-    // motorOut(1);
-    // wait(1);
-    // motorOut(0);
-    // wait(1);
-    // motorOut(5);
-    // wait(1);
-    // motorOut(4);
-    // wait(1);  
-    // motorOut(3);
-    // wait(1);
-
 }
 
 
@@ -135,9 +159,10 @@ int main() {
 
 
     CHA.rise(&CHA_rise_isr);
-    CHA.fall(&CHA_fall_isr);
-    CHB.rise(&CHB_rise_isr);
-    CHB.fall(&CHB_fall_isr);
+    thread_v.start(velocity_thread);
+    // CHA.fall(&CHA_fall_isr);
+    // CHB.rise(&CHB_rise_isr);
+    // CHB.fall(&CHB_fall_isr);
 
     // //Poll the rotor state and set the motor outputs accordingly to spin the motor
     // while (1) {
@@ -151,11 +176,10 @@ int main() {
     int8_t orState = 0;    //Rotot offset at motor state 0
     
     //Initialise the serial port
-    Serial pc(SERIAL_TX, SERIAL_RX);
     int8_t intState = 0;
     int8_t intStateOld = 0;
     pc.printf("Hello\n\r");
-    
+
     //Run the motor synchronisation
     orState = motorHome();
     pc.printf("Rotor origin: %x\n\r",orState);
@@ -163,11 +187,17 @@ int main() {
     
     //Poll the rotor state and set the motor outputs accordingly to spin the motor
     while (1) {
-        intState = readRotorState();
-        if (intState != intStateOld) {
-            intStateOld = intState;
-            motorOut((intState-orState+lead+6)%6); //+6 to make sure the remainder is positive
-        }
+        PRINT_DEBUG("before:%d,after:%d!",t_before,t_after);
+
+        // pc.printf("Velocity: %d\n\r",(int)(velocity*1000));
+
+        Thread::wait(500);
+
+        // intState = readRotorState();
+        // if (intState != intStateOld) {
+        //     intStateOld = intState;
+        //     motorOut((intState-orState+lead+6)%6); //+6 to make sure the remainder is positive
+        // }
     }
 
 }
