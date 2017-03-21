@@ -1,0 +1,14 @@
+NIKOLAY:
+    - controller
+
+    - velocity measure
+    - position measure
+
+
+
+BEN:
+    - parse instructions
+    - integrate parser in the program
+    - find out how to pass instructions to the controller using serial on linux
+
+

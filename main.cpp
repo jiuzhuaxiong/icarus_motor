@@ -26,6 +26,9 @@ volatile int tick = 0;
 
 volatile Timer t;
 
+int period = 0.5;
+// int pwm_on = 0.5;
+
 // ======================================== FUNCTION DEFINTIONS ========================================
 
 //Set a given drive state
@@ -55,7 +58,7 @@ void motorOut(int8_t driveState){
     PRINT_DEBUG("[%d,%d,%d,%d,%d,%d]",(int)L1L,(int)L1H,(int)L2L,(int)L2H,(int)L3L,(int)L3H);    
 }
 
-    //Convert photointerrupter inputs to a rotor state
+//Convert photointerrupter inputs to a rotor state
 inline int8_t readRotorState(){
     return STATE_MAP[I1 + 2*I2 + 4*I3];
 }
@@ -65,11 +68,9 @@ int8_t motorHome() {
     //Put the motor in drive state 0 and wait for it to stabilise
     motorOut(0);
     wait(1.0);
-    
     //Get the rotor state
     return readRotorState();
 }
-   
 
 
 inline void CHA_rise_isr() {
@@ -92,9 +93,10 @@ inline void CHB_fall_isr() {
     // tick -= (1>>!val);
 }
 
+// inline int readEncoder(){
+//     return tick
+// }
 
-int period = 0.5;
-// int pwm_on = 0.5;
 
 inline void loop(){
 
