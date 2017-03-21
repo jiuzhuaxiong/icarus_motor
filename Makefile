@@ -29,6 +29,8 @@ Makefile : ;
 % :: $(OBJDIR) ; :
 clean :
 	$(call RM,$(OBJDIR))
+install:
+	+@./install.sh
 
 else
 
@@ -530,3 +532,4 @@ endif
 
 # Dependencies
 ###############################################################################
+
