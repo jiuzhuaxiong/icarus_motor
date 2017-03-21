@@ -122,7 +122,6 @@ inline void CHA_rise_isr() {
 
 // }
 
-volatile count;
 
 void velocity_thread(){
     int t_before, t_after;
@@ -130,7 +129,7 @@ void velocity_thread(){
         t_before = tick;
         Thread::wait(100);
         t_after = tick;
-        velocity = 10*(t_before-t_after)/117;
+        velocity = 10.0*(float)(t_before-t_after)/117.0;
     }
 }
 
@@ -187,7 +186,7 @@ int main() {
     
     //Poll the rotor state and set the motor outputs accordingly to spin the motor
     while (1) {
-        PRINT_DEBUG("before:%d,after:%d!",t_before,t_after);
+        PRINT_DEBUG("before:%d,after:%d!",(int)(velocity*1000));
 
         // pc.printf("Velocity: %d\n\r",(int)(velocity*1000));
 
