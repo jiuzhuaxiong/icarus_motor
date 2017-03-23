@@ -3,7 +3,98 @@
 #include <stdlib.h>
 
 #include "wiring.h"
-#include "src/PidController.h"
+
+// ======================================== GLOBAL CONSTANTS ========================================
+
+class PidController {
+
+public:
+  
+  PidController(float k_p, float k_i, float k_d, float max_out /*=0*/) :
+    k_p_(k_p), k_i_(k_i), k_d_(k_d), max_out_(max_out), last_error_(0), last_de_dt_(0),
+    integrated_error_(0) 
+  {
+  }
+
+  float computeOutput(float reference, float measurement, float dt)
+  {
+    // convert time to seconds
+    // dt *= 1000000;
+
+    // compute error:
+    float error = reference - measurement;
+    
+    // compute error derivative:
+    float de_dt = (error - last_error_ ) / dt;
+
+    // Do smoothing (numeric derivatives are noisy):
+    // de_dt = 0.8 * last_de_dt_ + 0.2 * de_dt;
+
+    // compute output:
+    float output = k_p_ * error + k_i_ * integrated_error_ + k_d_ * de_dt;
+
+    
+    // Check for saturation - anti-reset windup
+    if (output > max_out_) {
+      // clamp -- and DO NOT INTEGRATE ERROR (anti- reset windup)
+      output = max_out_; 
+    }
+    else if (output < -max_out_) 
+    {
+      // clamp -- and DO NOT INTEGRATE ERROR (anti- reset windup)
+      output = -max_out_; 
+    } 
+    else 
+    {
+      integrated_error_ += error * dt; 
+    }
+
+    // save variables
+    last_error_ = error;
+    last_de_dt_ = de_dt;
+    
+    //PRINT_DEBUG("Error: %d", (int)(error*1000));
+//    PRINT_DEBUG("Output: %d", (int)(output*1000));
+    
+    return output;
+  }
+
+  void setParams(float k_p, float k_i, float k_d, float max_out)
+  {
+    k_p_ = k_p;
+    k_i_ = k_i;
+    k_d_ = k_d;
+    max_out_ = max_out;
+  }
+
+  // void timeDifference(float time_end);
+
+
+private:
+
+  inline void reset(){
+    last_error_ = 0.0; 
+    last_de_dt_ = 0.0; 
+    integrated_error_ = 0.0; 
+  }
+
+  float last_error_; 
+  float last_de_dt_; 
+  float integrated_error_; 
+
+  float k_p_; 
+  float k_i_; 
+  float k_d_; 
+
+  // If 0.0, then it is considered unlimited
+  float max_out_;
+
+  // float min_out_ = 0.0;
+
+  // float time_start_;
+  // float time_end_;
+
+};
 
 // ======================================== GLOBAL CONSTANTS ========================================
 
@@ -29,24 +120,27 @@ volatile int tick = 0;
 
 volatile int8_t rotorState;
 
-volatile int velocity = 0;
+volatile float velocity = 0;
 
 volatile int t_before = 0;
 volatile int t_now = 0;
 volatile int t_diff = 0; // revolutions/sec is 1/t_diff
 
 volatile float pwm_duty_cycle = 0.5;
-volatile int pwm_period = 1000; // in microseconds
+volatile int pwm_period = 400; // in microseconds
+
+volatile float ref_vel;
+
 
 Timer t;
 
-Thread thread_v;
-Thread thread_spin;
-Thread thread_control_vel;
+Thread thread_v(osPriorityNormal, 500);
+Thread thread_spin(osPriorityNormal, 500);
+Thread thread_vel_control;
 
 // int pwm_on = 0.5;
 
-PidController vel_controller(100.0, 0.0, 0.0, 1.0);
+PidController vel_controller(0.01, 0.00000001, 0.1, 1.0);
 //PidController pos_controller(100.0, 0.0, 0.0 0.0 1.0);
 
 int8_t orState = 0;    //Rotot offset at motor state 0
@@ -72,42 +166,6 @@ inline void CHA_rise_isr() {
 // }
 
 
-// ======================================== THREADS ========================================
-void spin(){
-
-    //Initialise the serial port
-    int8_t intState = 0;
-    int8_t intStateOld = 0;
-
-    //Run the motor synchronisation
-    pc.printf("Rotor origin: %x\n\r",orState);
-
-    while(1){
-        intState = readRotorState();
-        if (intState != intStateOld) {
-            intStateOld = intState;
-            motorOut((intState-orState+lead+6)%6); //+6 to make sure the remainder is positive
-        }
-    }
-}
-
-
-void velocity_thread(){
-    int tick_before, tick_after;
-    float output;
-
-    while(1){
-        tick_before = tick;
-        Thread::wait(VEL_PERIOD);
-        tick_after = tick;
-        velocity = 1000000/(VEL_PERIOD)*(tick_after-tick_before)/117;
-    }
-
-}
-
-void velocity_control_thread(){
-    pwm_duty_cycle = vel_controller.computeOutput(ref_vel, velocity, VEL_PERIOD);
-}
 
 
 // ======================================== FUNCTION DEFINTIONS ========================================
@@ -181,6 +239,46 @@ void set_pwm(int p){
     L3H.period_us(p);
 }
 
+
+// ======================================== THREADS ========================================
+void spin(){
+
+    //Initialise the serial port
+    int8_t intState = 0;
+    int8_t intStateOld = -1;
+    while(1){
+        intState = readRotorState();
+        if (intState != intStateOld) {
+            intStateOld = intState;
+            motorOut((intState-orState+lead+6)%6); //+6 to make sure the remainder is positive
+        }
+    }
+}
+
+
+void velocity_thread(){
+    int tick_before, tick_after;
+    float output;
+
+    while(1){
+        tick_before = tick;
+        Thread::wait(VEL_PERIOD);
+        tick_after = tick;
+        velocity = 1000.0/(VEL_PERIOD)*(tick_after-tick_before)/117.0;
+    }
+
+}
+
+void velocity_control_thread(){
+    while(1){
+        pwm_duty_cycle = vel_controller.computeOutput(ref_vel, velocity, VEL_PERIOD*1000);
+//        PRINT_DEBUG("Duty: 0.%03d",(int)(pwm_duty_cycle*1000))
+        PRINT_DEBUG("%d.%03d",((int)velocity),abs((int)(velocity*1000)%1000));
+        Thread::wait(VEL_PERIOD);
+    }
+}
+
+
 // ======================================== MAIN ========================================
 
 
@@ -209,11 +307,12 @@ int main() {
 
     thread_spin.start(spin);
     thread_v.start(velocity_thread);
+    thread_vel_control.start(velocity_control_thread);
+
+    ref_vel = 17.0;
 
     while (1){
         // set_pwm(239);
-        PRINT_DEBUG("Vel from Tick: %d.%03d",velocity/1000,abs(velocity%1000));
-        PRINT_DEBUG("Ticks: %d",tick)
         Thread::wait(1000);
         // set_pwm(213);
         // PRINT_DEBUG("Vel from Tick: %d.%03d",velocity/1000,abs(velocity%1000));

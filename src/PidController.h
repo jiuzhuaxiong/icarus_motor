@@ -9,21 +9,21 @@ public:
   
   PidController(float k_p, float k_i, float k_d, float max_out=0);
 
-  float computeOutput(float reference, float output, float dt);
+  float computeOutput(float reference, float measurement, float dt);
 
   void timeDifference(float time_start, float time_end);
   void timeDifference(float time_end);
 
-  void set_params(float k_p, float k_i, float k_d, float max_out);
+  void setParams(float k_p, float k_i, float k_d, float max_out);
 
 private:
 
   void reset();
 
 
-  float last_error_ = 0.0; 
-  float last_de_dt_ = 0.0; 
-  float integrated_error_ = 0.0; 
+  float last_error_; 
+  float last_de_dt_; 
+  float integrated_error_; 
 
   float k_p_; 
   float k_i_; 
