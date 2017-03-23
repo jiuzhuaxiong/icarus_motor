@@ -1,68 +1,121 @@
-#include <iostream>
-#include <string>
-//#include <vector>
+#include <stdio.h>
+#include <cstring>
+#include <stdlib.h>
 
-/*class Parser{
-	public:
-		void parse(std::string, float&, float&);
-		//std::vector<std::string> parse_music(std::string);
-};*/
+#define ROTATION = 117;
+#define FACTOR = 1000;
 
-void parse(std::string in, float& r, float& v);
-/*std::vector<std::string> Parser::parse_music(std::string in){
-	return 0;
-}*/
+bool parseCmd(char* in, float& r, float& v);
+bool isNaN(const float& val);
+char* subString (const char* input, int offset, int len, char* dest);
+
 
 int main(){
-	std::string input;
+	char input[16];
 	float r,v;
 
 	while(true){
-		std::cout << "Input: " << std::endl;
-		std::cin >> input;
+		printf("Input: \r\n");
+		scanf("%s", input);
+		printf("Inputted: %s\r\n", input);
 
-		if(input == "q"){
-			std::cout << "Exiting" << std::endl;
+		if(input[0] == 'q'){
+			printf("Exiting\r\n");
 			break;
 		}
 
-		parse(input, r, v);
-
-		if(v == -2.0){
-			std::cout << "R: " << r  << std::endl;
-		}
-		else if(r == -2.0){
-			std::cout << "V: " << v << std::endl;
-		}
-		else if(r == -1.0 && v == -1.0){
-			std::cout << "Invalid Command!" << std::endl;
+		if( !(parseCmd(input, r, v)) ){
+			printf("Invalid input!\r\n");
 		}
 		else{
-			std::cout << "R: " << r << " V: " << v << std::endl;
+			if(isNaN(v)){
+				printf("R: %f\r\n", r);
+			}
+			else if(isNaN(r)){
+				printf("V: %f\r\n", v);
+			}
+			else if(isNaN(r) && isNaN(v)){
+				printf("Invalid Command!\r\n");
+			}
+			else{
+				printf("R: %f V: %f\r\n", r, v);
+			}
 		}
-
-
 	}
 	return 0;
 }
 
-void parse(std::string in, float& r, float& v){
-	if((in.find("R") != std::string::npos) && (in.find("V") != std::string::npos)){	// R and V command
-		r = std::stof(in.substr(in.find("R")+1, in.find("V")-1));
-		v = std::stof(in.substr(in.find("V")+1));
+bool parseCmd(char* in, float& r, float& v){
+
+	char buf_r[7] = {0};
+	char buf_v[7] = {0};
+	if((in[0] == 'R') && (std::strchr(in,'V') != NULL)){	// R and V command
+		
+		int pos;
+		for(int i=0;i<=std::strlen(in);i++){
+			if(in[i] == 'V'){
+				pos = i;
+			}
+		}
+
+		for(int i=1;i<pos;i++){
+			buf_r[i-1] = in[i];
+		}
+		for(int i=pos+1;i<std::strlen(in);i++){
+			buf_v[i-pos-1] = in[i];
+		}
+		printf("buf_r: %s, buf_v: %s", buf_r, buf_v);
+
+		r = atof(buf_r);
+		v = atof(buf_v);
+
+		if (r>999.99 || r<-999.99){
+			return false;
+		}
+		if (v>999.99 || v<-999.99){
+			return false;
+		}
+
 		if(v < 0){
 			v *= -1;
 		}
+		return true;
 	}
-	else if(in.find("V") != std::string::npos){ // Only V command
-		v = std::stof(in.substr(in.find("V")+1));
-		r = -2.0; // Used for when R does not change
+	if(in[0] == 'V'){ // Only V command
+		for(int i=1;i<=std::strlen(in);i++){
+			buf_v[i-1] = in[i];
+		}
+		printf("buf_v: %s\r\n", buf_v);
+		v = atof(buf_v);
+
+		if (v>999.99 || v<-999.99){
+			return false;
+		}
+
+		memset((char*) &r, -1, sizeof(float)); // Used for when R does not change
+		return true;
 	}
-	else if(in.find("R") != std::string::npos){ // Only R command
-		r = std::stof(in.substr(in.find("R")+1));
-		v = -2.0; // Used for when V does not change
+	else if(in[0] == 'R'){ // Only R command
+		for(int i=1;i<=std::strlen(in);i++){
+			buf_r[i-1] = in[i];
+		}
+		printf("buf_r: %s\r\n", buf_r);
+		r = atof(buf_r);
+
+		if (r>999.99 || r<-999.99){
+			return false;
+		}
+
+		memset((char*) &v, -1, sizeof(float)); // Used for when V does not change
+		return true;
 	}
-	else{
-		r,v = -1.0;	// Used for invalid input commands, deal with at higher level
-	}
+	return false;	// Used for invalid input commands, deal with at higher level
+}
+
+bool isNaN(const float& val){
+	unsigned bval = *((unsigned*) &val);
+	bool lo = (bval & 0x0FFF) != 0;
+	bool hi = ((bval >> 24) & 0x7F) == 0x7F;
+	if(lo && hi){return true;}
+	return false;
 }
