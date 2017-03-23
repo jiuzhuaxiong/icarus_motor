@@ -2,7 +2,7 @@
 #include "rtos.h"
 
 #include "wiring.h"
-
+#include "src/PidController.h"
 
 // ======================================== GLOBAL CONSTANTS ========================================
 
@@ -35,6 +35,68 @@ float period = 0.5;
 Thread thread_v;
 
 // int pwm_on = 0.5;
+
+// PidController vol_controller;
+PidController pos_controller();
+
+// ======================================== INTERRUPTS ========================================
+
+
+inline void CHA_rise_isr() {
+    tick -= INC[CHB.read()];
+    // PRINT_DEBUG("Tick: %d",tick)
+}
+
+// inline void CHA_fall_isr() {
+//     tick += INC[CHB.read()];
+// }
+
+// inline void CHB_rise_isr() {
+//     tick += INC[CHA.read()];
+// }
+
+// inline void CHB_fall_isr() {
+//     tick -= INC[CHA.read()];
+//     // Maybe faster?
+//     // int val = CHA.read();
+//     // tick += (1>>val);
+//     // tick -= (1>>!val);
+// }
+
+// inline void I1_rise_isr() {
+// }
+// inline void I1_fall_isr() {
+
+// }
+
+// inline void I2_rise_isr() {
+
+// }
+// inline void I2_fall_isr() {
+
+// }
+
+// inline void I3_rise_isr() {
+
+
+// }
+// inline void I3_fall_isr() {
+
+// }
+
+// ======================================== THREADS ========================================
+
+void velocity_thread(){
+    int t_before, t_after;
+    while(true){
+        t_before = tick;
+        Thread::wait(100);
+        t_after = tick;
+        velocity = 10.0*(float)(t_before-t_after)/117.0;
+    }
+}
+
+
 
 // ======================================== FUNCTION DEFINTIONS ========================================
 
@@ -80,60 +142,6 @@ int8_t motorHome() {
 }
 
 
-inline void CHA_rise_isr() {
-    tick -= INC[CHB.read()];
-    // PRINT_DEBUG("Tick: %d",tick)
-}
-
-// inline void CHA_fall_isr() {
-//     tick += INC[CHB.read()];
-// }
-
-// inline void CHB_rise_isr() {
-//     tick += INC[CHA.read()];
-// }
-
-// inline void CHB_fall_isr() {
-//     tick -= INC[CHA.read()];
-//     // Maybe faster?
-//     // int val = CHA.read();
-//     // tick += (1>>val);
-//     // tick -= (1>>!val);
-// }
-
-// inline void I1_rise_isr() {
-// }
-// inline void I1_fall_isr() {
-
-// }
-
-// inline void I2_rise_isr() {
-
-// }
-// inline void I2_fall_isr() {
-
-// }
-
-// inline void I3_rise_isr() {
-
-
-// }
-// inline void I3_fall_isr() {
-
-// }
-
-
-void velocity_thread(){
-    int t_before, t_after;
-    while(true){
-        t_before = tick;
-        Thread::wait(100);
-        t_after = tick;
-        velocity = 10.0*(float)(t_before-t_after)/117.0;
-    }
-}
-
-
 inline void loop(){
 
     for(int i=0; i<6; i++){
@@ -146,8 +154,7 @@ inline void loop(){
     }
 }
 
-
-//Main
+// ======================================== MAIN ========================================
 int main() {
     // =============================
     // Test MAIN

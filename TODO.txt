@@ -1,9 +1,10 @@
 NIKOLAY:
-    - controller
+    - figure out what is the model for speed/position vs PWM - google
+
+    - rotations - how do you model your controller
 
     - velocity measure
     - position measure
-
 
 
 BEN:

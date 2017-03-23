@@ -14,6 +14,7 @@ public:
   void timeDifference(float time_start, float time_end);
   void timeDifference(float time_end);
 
+  void set_params(float k_p, float k_i, float k_d, float max_out);
 
 private:
 
@@ -30,12 +31,11 @@ private:
 
   // If 0.0, then it is considered unlimited
   float max_out_;
-  float min_out_ = 0.0;
 
-  //mbed::Timer
+  // float min_out_ = 0.0;
 
-  float time_start_;
-  float time_end_;
+  // float time_start_;
+  // float time_end_;
 
 };
 

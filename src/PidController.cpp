@@ -8,6 +8,9 @@ PidController::PidController(float k_p, float k_i, float k_d, float max_out /*=0
 
 float PidController::computeOutput(float reference, float output, float dt)
 {
+  // convert time to seconds
+  dt *= 1000000;
+
   // compute error:
   float error = reference - output;
   
@@ -22,37 +25,46 @@ float PidController::computeOutput(float reference, float output, float dt)
   
   // Check for saturation - anti-reset windup
   if (output > max_out_) {
-    output = max_out_; // clamp -- and DO NOT INTEGRATE ERROR (anti- reset windup)
+    // clamp -- and DO NOT INTEGRATE ERROR (anti- reset windup)
+    output = max_out_; 
   }
-
-  // else if (output < - 1.0) 
-  // {
-  //   output = - 1.0; // clamp -- and DO NOT INTEGRATE ERROR (anti- reset windup)
-  // } 
+  else if (output < -max_out) 
+  {
+    // clamp -- and DO NOT INTEGRATE ERROR (anti- reset windup)
+    output = -max_out; 
+  } 
   else 
   {
     integrated_error_ += error * dt; 
   }
 
-  // save:
+  // save variables
   last_error_ = error;
   last_de_dt_ = de_dt;
 
   return output;
 }
 
-float PidController::computeOutput(float reference, float output)
+void PidController::set_params(float k_p, float k_i, float k_d, float max_out);
 {
-  return computeOutput(reference, output, time_end_ - time_start_)
+  k_p_ = k_p;
+  k_i_ = k_i;
+  k_d_ = k_d;
+  max_out_ = max_out;
 }
 
-inline void PidController::timeDifference(float time_end)
-{
-  time_end_ = time_end;
-}
+// float PidController::computeOutput(float reference, float output)
+// {
+//   return computeOutput(reference, output, time_end_ - time_start_)
+// }
 
-inline void PidController::timeDifference(float time_start, float time_end)
-{
-  time_start_ = time_start;
-  time_end_ = time_end;
-}
+// inline void PidController::timeDifference(float time_end)
+// {
+//   time_end_ = time_end;
+// }
+
+// inline void PidController::timeDifference(float time_start, float time_end)
+// {
+//   time_start_ = time_start;
+//   time_end_ = time_end;
+// }
