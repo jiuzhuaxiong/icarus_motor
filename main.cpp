@@ -28,7 +28,7 @@ public:
     float de_dt = (error - last_error_ ) / dt;
 
     // Do smoothing (numeric derivatives are noisy):
-    // de_dt = 0.8 * last_de_dt_ + 0.2 * de_dt;
+    de_dt = 0.8 * last_de_dt_ + 0.2 * de_dt;
 
     // compute output:
     float output = k_p_ * error + k_i_ * integrated_error_ + k_d_ * de_dt;
@@ -44,7 +44,7 @@ public:
       // clamp -- and DO NOT INTEGRATE ERROR (anti- reset windup)
       output = -max_out_; 
     } 
-    else 
+    else if (error < 0.15*measurement && error > -0.15*measurement)
     {
       integrated_error_ += error * dt; 
     }
@@ -140,7 +140,8 @@ Thread thread_vel_control;
 
 // int pwm_on = 0.5;
 
-PidController vel_controller(0.01, 0.00000001, 0.1, 1.0);
+// PidController vel_controller(0.01, 0.00000001, 0.1, 1.0);
+PidController vel_controller(0.021, 0.00000001, 0.000144, 1.0); //PID values from ZiglerNicholas [0.021, 0.07636363636363636, 0.0014437500000000002]
 //PidController pos_controller(100.0, 0.0, 0.0 0.0 1.0);
 
 int8_t orState = 0;    //Rotot offset at motor state 0
@@ -159,11 +160,11 @@ inline void CHA_rise_isr() {
 
 
 
-// void I1_rise_isr(){
-//     t_now = t.read_us();
-//     t_diff = t_now-t_before;
-//     t_before = t_now;
-// }
+inline void I1_rise_isr(){
+    t_now = t.read_us();
+    t_diff = t_now-t_before;
+    t_before = t_now;
+}
 
 
 
@@ -261,10 +262,17 @@ void velocity_thread(){
     float output;
 
     while(1){
-        tick_before = tick;
-        Thread::wait(VEL_PERIOD);
-        tick_after = tick;
-        velocity = 1000.0/(VEL_PERIOD)*(tick_after-tick_before)/117.0;
+        if (velocity < 10){
+          tick_before = tick;
+          Thread::wait(VEL_PERIOD);
+          tick_after = tick;
+          velocity = 1000.0/(VEL_PERIOD)*(tick_after-tick_before)/117.0;
+        }
+        // else {
+        //   velocity = 1000000.0/(float)t_diff;
+        //   Thread::wait(VEL_PERIOD);
+        // }
+
     }
 
 }
@@ -288,6 +296,7 @@ int main() {
     // =============================
 
     CHA.rise(&CHA_rise_isr);
+    I1.rise(&I1_rise_isr);
 
     // =============================
     // Original MAIN
@@ -309,7 +318,7 @@ int main() {
     thread_v.start(velocity_thread);
     thread_vel_control.start(velocity_control_thread);
 
-    ref_vel = 17.0;
+    ref_vel = 30.0;
 
     while (1){
         // set_pwm(239);
