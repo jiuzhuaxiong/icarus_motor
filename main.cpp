@@ -20,7 +20,7 @@ const int8_t lead = -2;  // 2 for forwards, -2 for backwards
 // Increment values for the ticks encoder
 const int INC[2] = {-1, 1};
 
-const int VEL_PERIOD = 100;
+const int VEL_PERIOD = 100;     // in milliseconds
 
 // ======================================== GLOBAL VARIABLES ========================================
 
@@ -42,11 +42,12 @@ Timer t;
 
 Thread thread_v;
 Thread thread_spin;
+Thread thread_control_vel;
 
 // int pwm_on = 0.5;
 
-// PidController vol_controller;
-PidController pos_controller();
+PidController vel_controller(100.0, 0.0, 0.0, 1.0);
+//PidController pos_controller(100.0, 0.0, 0.0 0.0 1.0);
 
 int8_t orState = 0;    //Rotot offset at motor state 0
 
@@ -93,13 +94,21 @@ void spin(){
 
 void velocity_thread(){
     int tick_before, tick_after;
+    float output;
+
     while(1){
         tick_before = tick;
         Thread::wait(VEL_PERIOD);
         tick_after = tick;
         velocity = 1000000/(VEL_PERIOD)*(tick_after-tick_before)/117;
     }
+
 }
+
+void velocity_control_thread(){
+    pwm_duty_cycle = vel_controller.computeOutput(ref_vel, velocity, VEL_PERIOD);
+}
+
 
 // ======================================== FUNCTION DEFINTIONS ========================================
 
@@ -130,6 +139,7 @@ void motorOut(int8_t driveState){
 
     // and turn on Vm
 }
+
 
 //Convert photointerrupter inputs to a rotor state
 inline int8_t readRotorState(){
