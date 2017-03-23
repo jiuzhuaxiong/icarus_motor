@@ -43,15 +43,16 @@ float PidController::computeOutput(float reference, float output, float dt)
 
 float PidController::computeOutput(float reference, float output)
 {
-
+  return computeOutput(reference, output, time_end_ - time_start_)
 }
 
-void PidController::timeDifference(float time_end)
+inline void PidController::timeDifference(float time_end)
 {
-
+  time_end_ = time_end;
 }
 
-void PidController::timeDifference(float time_start, float time_end)
+inline void PidController::timeDifference(float time_start, float time_end)
 {
-
+  time_start_ = time_start;
+  time_end_ = time_end;
 }

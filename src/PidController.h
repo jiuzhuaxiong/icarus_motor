@@ -32,7 +32,10 @@ private:
   float max_out_;
   float min_out_ = 0.0;
 
-  mbed::Timer
+  //mbed::Timer
+
+  float time_start_;
+  float time_end_;
 
 };
 
