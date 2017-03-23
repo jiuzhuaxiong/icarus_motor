@@ -3,7 +3,7 @@
 #include <stdlib.h>
 
 #include "wiring.h"
-#include "src/PidController.h"
+#include "PidController.h"
 
 // ======================================== GLOBAL CONSTANTS ========================================
 
@@ -29,7 +29,7 @@ volatile int tick = 0;
 
 volatile int8_t rotorState;
 
-volatile int velocity = 0;
+volatile float velocity = 0;
 
 volatile int t_before = 0;
 volatile int t_now = 0;
@@ -38,11 +38,14 @@ volatile int t_diff = 0; // revolutions/sec is 1/t_diff
 volatile float pwm_duty_cycle = 0.5;
 volatile int pwm_period = 1000; // in microseconds
 
+volatile float ref_vel;
+
+
 Timer t;
 
-Thread thread_v;
-Thread thread_spin;
-Thread thread_control_vel;
+Thread thread_v(osPriorityNormal, 500);
+Thread thread_spin(osPriorityNormal, 500);
+Thread thread_vel_control(osPriorityNormal, 500);
 
 // int pwm_on = 0.5;
 
@@ -72,42 +75,6 @@ inline void CHA_rise_isr() {
 // }
 
 
-// ======================================== THREADS ========================================
-void spin(){
-
-    //Initialise the serial port
-    int8_t intState = 0;
-    int8_t intStateOld = 0;
-
-    //Run the motor synchronisation
-    pc.printf("Rotor origin: %x\n\r",orState);
-
-    while(1){
-        intState = readRotorState();
-        if (intState != intStateOld) {
-            intStateOld = intState;
-            motorOut((intState-orState+lead+6)%6); //+6 to make sure the remainder is positive
-        }
-    }
-}
-
-
-void velocity_thread(){
-    int tick_before, tick_after;
-    float output;
-
-    while(1){
-        tick_before = tick;
-        Thread::wait(VEL_PERIOD);
-        tick_after = tick;
-        velocity = 1000000/(VEL_PERIOD)*(tick_after-tick_before)/117;
-    }
-
-}
-
-void velocity_control_thread(){
-    pwm_duty_cycle = vel_controller.computeOutput(ref_vel, velocity, VEL_PERIOD);
-}
 
 
 // ======================================== FUNCTION DEFINTIONS ========================================
@@ -181,6 +148,45 @@ void set_pwm(int p){
     L3H.period_us(p);
 }
 
+
+// ======================================== THREADS ========================================
+void spin(){
+
+    //Initialise the serial port
+    int8_t intState = 0;
+    int8_t intStateOld = 0;
+
+    //Run the motor synchronisation
+    pc.printf("Rotor origin: %x\n\r",orState);
+
+    while(1){
+        intState = readRotorState();
+        if (intState != intStateOld) {
+            intStateOld = intState;
+            motorOut((intState-orState+lead+6)%6); //+6 to make sure the remainder is positive
+        }
+    }
+}
+
+
+void velocity_thread(){
+    int tick_before, tick_after;
+    float output;
+
+    while(1){
+        tick_before = tick;
+        Thread::wait(VEL_PERIOD);
+        tick_after = tick;
+        velocity = 1000.0/(VEL_PERIOD)*(tick_after-tick_before)/117.0;
+    }
+
+}
+
+void velocity_control_thread(){
+    pwm_duty_cycle = vel_controller.computeOutput(ref_vel, velocity, VEL_PERIOD*1000);
+}
+
+
 // ======================================== MAIN ========================================
 
 
@@ -209,11 +215,14 @@ int main() {
 
     thread_spin.start(spin);
     thread_v.start(velocity_thread);
+    thread_vel_control.start(velocity_control_thread);
+
+    ref_vel = 10.0;
 
     while (1){
         // set_pwm(239);
-        PRINT_DEBUG("Vel from Tick: %d.%03d",velocity/1000,abs(velocity%1000));
-        PRINT_DEBUG("Ticks: %d",tick)
+        PRINT_DEBUG("Vel from Tick: %d.%03d",((int)velocity),abs((int)(velocity*1000)%1000));
+        PRINT_DEBUG("Duty: 0.%03d",(int)(pwm_duty_cycle*1000))
         Thread::wait(1000);
         // set_pwm(213);
         // PRINT_DEBUG("Vel from Tick: %d.%03d",velocity/1000,abs(velocity%1000));

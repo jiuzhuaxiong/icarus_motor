@@ -1,24 +1,25 @@
 #include "PidController.h"
 
 PidController::PidController(float k_p, float k_i, float k_d, float max_out /*=0*/) :
-  k_p_(k_p), k_i_(k_i), k_d_(k_d), max_out_(max_out)
+  k_p_(k_p), k_i_(k_i), k_d_(k_d), max_out_(max_out), last_error_(0), last_de_dt_(0),
+  integrated_error_(0) 
 {
 }
 
 
-float PidController::computeOutput(float reference, float output, float dt)
+float PidController::computeOutput(float reference, float measurement, float dt)
 {
   // convert time to seconds
-  dt *= 1000000;
+  // dt *= 1000000;
 
   // compute error:
-  float error = reference - output;
+  float error = reference - measurement;
   
   // compute error derivative:
   float de_dt = (error - last_error_ ) / dt;
 
   // Do smoothing (numeric derivatives are noisy):
-  de_dt = 0.8 * last_de_dt_ + 0.2 * de_dt;
+  // de_dt = 0.8 * last_de_dt_ + 0.2 * de_dt;
 
   // compute output:
   float output = k_p_ * error + k_i_ * integrated_error_ + k_d_ * de_dt;
@@ -28,10 +29,10 @@ float PidController::computeOutput(float reference, float output, float dt)
     // clamp -- and DO NOT INTEGRATE ERROR (anti- reset windup)
     output = max_out_; 
   }
-  else if (output < -max_out) 
+  else if (output < -max_out_) 
   {
     // clamp -- and DO NOT INTEGRATE ERROR (anti- reset windup)
-    output = -max_out; 
+    output = -max_out_; 
   } 
   else 
   {
@@ -45,7 +46,7 @@ float PidController::computeOutput(float reference, float output, float dt)
   return output;
 }
 
-void PidController::set_params(float k_p, float k_i, float k_d, float max_out);
+void PidController::setParams(float k_p, float k_i, float k_d, float max_out)
 {
   k_p_ = k_p;
   k_i_ = k_i;
@@ -68,3 +69,9 @@ void PidController::set_params(float k_p, float k_i, float k_d, float max_out);
 //   time_start_ = time_start;
 //   time_end_ = time_end;
 // }
+
+inline void PidController::reset(){
+  last_error_ = 0.0; 
+  last_de_dt_ = 0.0; 
+  integrated_error_ = 0.0; 
+}
