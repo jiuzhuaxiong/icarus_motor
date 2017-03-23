@@ -45,11 +45,11 @@ DigitalIn CHB(CHBpin);
 
 // Motor Drive outputs
 DigitalOut L1L(L1Lpin);
-DigitalOut L1H(L1Hpin);
+PwmOut L1H(L1Hpin);
 DigitalOut L2L(L2Lpin);
-DigitalOut L2H(L2Hpin);
+PwmOut L2H(L2Hpin);
 DigitalOut L3L(L3Lpin);
-DigitalOut L3H(L3Hpin);
+PwmOut L3H(L3Hpin);
 
 // Serial output
 Serial pc(SERIAL_TX, SERIAL_RX);

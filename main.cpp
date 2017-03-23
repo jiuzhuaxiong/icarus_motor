@@ -1,5 +1,6 @@
 #include "mbed.h"
 #include "rtos.h"
+#include <stdlib.h>
 
 #include "wiring.h"
 #include "src/PidController.h"
@@ -19,84 +20,86 @@ const int8_t lead = -2;  // 2 for forwards, -2 for backwards
 // Increment values for the ticks encoder
 const int INC[2] = {-1, 1};
 
+const int VEL_PERIOD = 100;
+
 // ======================================== GLOBAL VARIABLES ========================================
 
 // Value of the ticks encoder
 volatile int tick = 0;  
 
-volatile Timer t;
-
 volatile int8_t rotorState;
 
-volatile float velocity = 0;
+volatile int velocity = 0;
 
-float period = 0.5;
+volatile int t_before = 0;
+volatile int t_now = 0;
+volatile int t_diff = 0; // revolutions/sec is 1/t_diff
+
+volatile float pwm_duty_cycle = 0.5;
+volatile int pwm_period = 1000; // in microseconds
+
+Timer t;
 
 Thread thread_v;
+Thread thread_spin;
 
 // int pwm_on = 0.5;
 
 // PidController vol_controller;
 PidController pos_controller();
 
+int8_t orState = 0;    //Rotot offset at motor state 0
+
 // ======================================== INTERRUPTS ========================================
 
 
 inline void CHA_rise_isr() {
-    tick -= INC[CHB.read()];
-    // PRINT_DEBUG("Tick: %d",tick)
+    tick += INC[CHB.read()];
+
+    // Maybe faster?
+    // int val = CHB.read();
+    // tick += (1>>val);
+    // tick -= (1>>!val);
 }
 
-// inline void CHA_fall_isr() {
-//     tick += INC[CHB.read()];
+
+
+// void I1_rise_isr(){
+//     t_now = t.read_us();
+//     t_diff = t_now-t_before;
+//     t_before = t_now;
 // }
 
-// inline void CHB_rise_isr() {
-//     tick += INC[CHA.read()];
-// }
-
-// inline void CHB_fall_isr() {
-//     tick -= INC[CHA.read()];
-//     // Maybe faster?
-//     // int val = CHA.read();
-//     // tick += (1>>val);
-//     // tick -= (1>>!val);
-// }
-
-// inline void I1_rise_isr() {
-// }
-// inline void I1_fall_isr() {
-
-// }
-
-// inline void I2_rise_isr() {
-
-// }
-// inline void I2_fall_isr() {
-
-// }
-
-// inline void I3_rise_isr() {
-
-
-// }
-// inline void I3_fall_isr() {
-
-// }
 
 // ======================================== THREADS ========================================
+void spin(){
 
-void velocity_thread(){
-    int t_before, t_after;
-    while(true){
-        t_before = tick;
-        Thread::wait(100);
-        t_after = tick;
-        velocity = 10.0*(float)(t_before-t_after)/117.0;
+    //Initialise the serial port
+    int8_t intState = 0;
+    int8_t intStateOld = 0;
+
+    //Run the motor synchronisation
+    pc.printf("Rotor origin: %x\n\r",orState);
+
+    while(1){
+        intState = readRotorState();
+        if (intState != intStateOld) {
+            intStateOld = intState;
+            motorOut((intState-orState+lead+6)%6); //+6 to make sure the remainder is positive
+        }
     }
 }
 
 
+void velocity_thread(){
+    int tick_before, tick_after;
+    while(1){
+        tick_before = tick;
+        Thread::wait(VEL_PERIOD);
+        tick_after = tick;
+        velocity = 1000000/(VEL_PERIOD)*(tick_after-tick_before)/117;
+    }
+}
 
 // ======================================== FUNCTION DEFINTIONS ========================================
 
@@ -106,25 +109,26 @@ void motorOut(int8_t driveState){
     //Lookup the output byte from the drive state.
     int8_t driveOut = DRIVE_TABLE[driveState & 0x07];
 
-    PRINT_DEBUG("motorOut: %x",driveState);
+    //Turn off Vm
+    if (~driveOut & 0x02) L1H.write(1);
+    if (~driveOut & 0x08) L2H.write(1);
+    if (~driveOut & 0x20) L3H.write(1);
 
-    //Turn off first
-    if (~driveOut & 0x01) L1L = 0;
-    if (~driveOut & 0x02) L1H = 1;
-    if (~driveOut & 0x04) L2L = 0;
-    if (~driveOut & 0x08) L2H = 1;
-    if (~driveOut & 0x10) L3L = 0;
-    if (~driveOut & 0x20) L3H = 1;
-    
-    //Then turn on
-    if (driveOut & 0x01) L1L = 1;
-    if (driveOut & 0x02) L1H = 0;
-    if (driveOut & 0x04) L2L = 1;
-    if (driveOut & 0x08) L2H = 0;
-    if (driveOut & 0x10) L3L = 1;
-    if (driveOut & 0x20) L3H = 0;  
+   if (~driveOut & 0x01) L1L.write(0);
+   if (~driveOut & 0x04) L2L.write(0);
+   if (~driveOut & 0x10) L3L.write(0);
 
-    PRINT_DEBUG("[%d,%d,%d,%d,%d,%d]",(int)L1L,(int)L1H,(int)L2L,(int)L2H,(int)L3L,(int)L3H);    
+    //Then turn on gnd
+   if (driveOut & 0x01) L1L.write(1);
+   if (driveOut & 0x02) L1H.write(1-pwm_duty_cycle);
+
+   if (driveOut & 0x04) L2L.write(1);
+   if (driveOut & 0x08) L2H.write(1-pwm_duty_cycle);
+
+   if (driveOut & 0x10) L3L.write(1);
+   if (driveOut & 0x20) L3H.write(1-pwm_duty_cycle);
+
+    // and turn on Vm
 }
 
 //Convert photointerrupter inputs to a rotor state
@@ -132,83 +136,86 @@ inline int8_t readRotorState(){
     return STATE_MAP[I1 + 2*I2 + 4*I3];
 }
 
+
 //Basic synchronisation routine    
 int8_t motorHome() {
     //Put the motor in drive state 0 and wait for it to stabilise
-    motorOut(0);
-    wait(1.0);
+
+    L2H.write(1);
+    L3H.write(1);
+    L1L.write(0);
+    L2L.write(0);
+
+    L1H.write(0);
+    L3L.write(1);
+
+    bool stable = false;
+    int prev_state, curr_state;
+
+    prev_state = readRotorState();
+
+    while(!stable){
+        wait(1.0);
+        curr_state = readRotorState();
+        stable = (curr_state == 0) && (curr_state == prev_state);
+        prev_state = curr_state;
+    }
+
     //Get the rotor state
     return readRotorState();
 }
 
-
-inline void loop(){
-
-    for(int i=0; i<6; i++){
-        motorOut(i);
-        wait(period);
-        // wait(pwm_on*period/6);
-        // motorOut(6);
-        // wait(0.5);
-        // wait((1-pwm_on)*period/6);  
-    }
+void set_pwm(int p){
+    L1H.period_us(p);
+    L2H.period_us(p);
+    L3H.period_us(p);
 }
 
 // ======================================== MAIN ========================================
+
+
 int main() {
     // =============================
     // Test MAIN
     // =============================
 
-    // motorOut(0);
-    // wait(1.0);
-
-
     CHA.rise(&CHA_rise_isr);
-    thread_v.start(velocity_thread);
-    // CHA.fall(&CHA_fall_isr);
-    // CHB.rise(&CHB_rise_isr);
-    // CHB.fall(&CHB_fall_isr);
-
-    // //Poll the rotor state and set the motor outputs accordingly to spin the motor
-    // while (1) {
-    //     loop();
-    // }
-
 
     // =============================
     // Original MAIN
     // =============================
-    int8_t orState = 0;    //Rotot offset at motor state 0
-    
-    //Initialise the serial port
-    int8_t intState = 0;
-    int8_t intStateOld = 0;
+
     pc.printf("Hello\n\r");
 
-    //Run the motor synchronisation
-    orState = motorHome();
-    pc.printf("Rotor origin: %x\n\r",orState);
+    set_pwm(pwm_period);
+
     //orState is subtracted from future rotor state inputs to align rotor and motor states
     
-    //Poll the rotor state and set the motor outputs accordingly to spin the motor
-    while (1) {
-        PRINT_DEBUG("before:%d,after:%d!",(int)(velocity*1000));
 
-        // pc.printf("Velocity: %d\n\r",(int)(velocity*1000));
+    orState = motorHome();
 
-        Thread::wait(500);
+    // // Begin threads
+    t.start();
 
-        // intState = readRotorState();
-        // if (intState != intStateOld) {
-        //     intStateOld = intState;
-        //     motorOut((intState-orState+lead+6)%6); //+6 to make sure the remainder is positive
-        // }
+    thread_spin.start(spin);
+    thread_v.start(velocity_thread);
+
+    while (1){
+        // set_pwm(239);
+        PRINT_DEBUG("Vel from Tick: %d.%03d",velocity/1000,abs(velocity%1000));
+        PRINT_DEBUG("Ticks: %d",tick)
+        Thread::wait(1000);
+        // set_pwm(213);
+        // PRINT_DEBUG("Vel from Tick: %d.%03d",velocity/1000,abs(velocity%1000));
+        // PRINT_DEBUG("Ticks: %d",tick)
+        // Thread::wait(1000);
+        // set_pwm(190);
+        // PRINT_DEBUG("Vel from Tick: %d.%03d",velocity/1000,abs(velocity%1000));
+        // PRINT_DEBUG("Ticks: %d",tick)
+        // Thread::wait(1000);
+        // set_pwm(179);
+        // PRINT_DEBUG("Vel from Tick: %d.%03d",velocity/1000,abs(velocity%1000));
+        // PRINT_DEBUG("Ticks: %d",tick)
+        // Thread::wait(1000);
     }
-
 }
-
-
-
-
-
