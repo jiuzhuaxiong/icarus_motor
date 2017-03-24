@@ -44,7 +44,7 @@ public:
       // clamp -- and DO NOT INTEGRATE ERROR (anti- reset windup)
       output = -max_out_; 
     } 
-    else if (error < 0.15*measurement && error > -0.15*measurement)
+    else if (error < 0.2*measurement && error > -0.2*measurement)
     {
       integrated_error_ += error * dt; 
     }
@@ -53,6 +53,8 @@ public:
     last_error_ = error;
     last_de_dt_ = de_dt;
     
+    PRINT_DEBUG("P:%d, I:%d, D:%d",(int)(k_p_*error*1000000),(int)(k_i_*integrated_error_*1000000),(int)(k_d_*de_dt*1000000));
+
     //PRINT_DEBUG("Error: %d", (int)(error*1000));
 //    PRINT_DEBUG("Output: %d", (int)(output*1000));
     
@@ -113,6 +115,16 @@ const int INC[2] = {-1, 1};
 
 const int VEL_PERIOD = 100;     // in milliseconds
 
+const float KP_VELOCITY_FAST = 0.021;
+const float KI_VELOCITY_FAST = 0.000000005;
+const float KD_VELOCITY_FAST = 0.000144;
+
+
+const float KP_VELOCITY_SLOW = 0.015;;
+const float KI_VELOCITY_SLOW = 0.000000002;
+const float KD_VELOCITY_SLOW = 0.000024;
+
+
 // ======================================== GLOBAL VARIABLES ========================================
 
 // Value of the ticks encoder
@@ -131,17 +143,19 @@ volatile int pwm_period = 400; // in microseconds
 
 volatile float ref_vel;
 
+volatile int rots;
+
+volatile bool using_i1_velocity = false;
 
 Timer t;
 
 Thread thread_v(osPriorityNormal, 500);
 Thread thread_spin(osPriorityNormal, 500);
 Thread thread_vel_control;
-
 // int pwm_on = 0.5;
 
 // PidController vel_controller(0.01, 0.00000001, 0.1, 1.0);
-PidController vel_controller(0.021, 0.00000001, 0.000144, 1.0); //PID values from ZiglerNicholas [0.021, 0.07636363636363636, 0.0014437500000000002]
+PidController vel_controller(KP_VELOCITY_FAST, KI_VELOCITY_FAST, KD_VELOCITY_FAST, 1.0); //PID values from ZiglerNicholas [0.021, 0.07636363636363636, 0.0014437500000000002]
 //PidController pos_controller(100.0, 0.0, 0.0 0.0 1.0);
 
 int8_t orState = 0;    //Rotot offset at motor state 0
@@ -151,19 +165,27 @@ int8_t orState = 0;    //Rotot offset at motor state 0
 
 inline void CHA_rise_isr() {
     tick += INC[CHB.read()];
+}
 
     // Maybe faster?
     // int val = CHB.read();
     // tick += (1>>val);
     // tick -= (1>>!val);
-}
-
 
 
 inline void I1_rise_isr(){
+
     t_now = t.read_us();
-    t_diff = t_now-t_before;
-    t_before = t_now;
+    int t_diff_temp = t_now-t_before;
+    if(t_diff_temp > 0.01){ // Ignore if the duration is too small (implying glitch)
+        rots++;
+        t_diff = t_now-t_before;
+        t_before = t_now;
+
+        if(using_i1_velocity){
+            tick = rots*117;  
+        }
+    }
 }
 
 
@@ -226,7 +248,7 @@ int8_t motorHome() {
     while(!stable){
         wait(1.0);
         curr_state = readRotorState();
-        stable = (curr_state == 0) && (curr_state == prev_state);
+        stable = (velocity == 0) && (curr_state == prev_state);
         prev_state = curr_state;
     }
 
@@ -259,29 +281,33 @@ void spin(){
 
 void velocity_thread(){
     int tick_before, tick_after;
-    float output;
-
+    float result;
     while(1){
-        if (velocity < 10){
+        if (velocity < 10 && velocity > -10){
+          using_i1_velocity = false;
           tick_before = tick;
           Thread::wait(VEL_PERIOD);
           tick_after = tick;
           velocity = 1000.0/(VEL_PERIOD)*(tick_after-tick_before)/117.0;
         }
-        // else {
-        //   velocity = 1000000.0/(float)t_diff;
-        //   Thread::wait(VEL_PERIOD);
-        // }
+        else {
+          using_i1_velocity = true;
+          result = 1000000.0/(float)t_diff;
+          velocity = result;
+          Thread::wait(VEL_PERIOD);
+        }
 
     }
 
 }
 
+
 void velocity_control_thread(){
+    float vel_copy;
     while(1){
         pwm_duty_cycle = vel_controller.computeOutput(ref_vel, velocity, VEL_PERIOD*1000);
 //        PRINT_DEBUG("Duty: 0.%03d",(int)(pwm_duty_cycle*1000))
-        PRINT_DEBUG("%d.%03d",((int)velocity),abs((int)(velocity*1000)%1000));
+        // PRINT_DEBUG("%d.%03d",((int)velocity),abs((int)(velocity*1000)%1000));
         Thread::wait(VEL_PERIOD);
     }
 }
@@ -308,21 +334,32 @@ int main() {
 
     //orState is subtracted from future rotor state inputs to align rotor and motor states
     
+    thread_v.start(velocity_thread);
 
     orState = motorHome();
 
     // // Begin threads
     t.start();
 
+    ref_vel = 16.0;
+
+    if(ref_vel < 10.0){
+      vel_controller.setParams(KP_VELOCITY_FAST, KI_VELOCITY_FAST, KD_VELOCITY_FAST, 1.0);
+    }
+    else {
+      vel_controller.setParams(KP_VELOCITY_SLOW, KI_VELOCITY_SLOW, KD_VELOCITY_SLOW, 1.0);
+    }
+
     thread_spin.start(spin);
-    thread_v.start(velocity_thread);
     thread_vel_control.start(velocity_control_thread);
 
-    ref_vel = 30.0;
 
     while (1){
         // set_pwm(239);
-        Thread::wait(1000);
+
+        // PRINT_DEBUG("Ticks: %d",tick)
+        // PRINT_DEBUG("Rots: %d",rots)
+        Thread::wait(100);
         // set_pwm(213);
         // PRINT_DEBUG("Vel from Tick: %d.%03d",velocity/1000,abs(velocity%1000));
         // PRINT_DEBUG("Ticks: %d",tick)
