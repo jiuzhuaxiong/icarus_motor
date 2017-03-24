@@ -68,7 +68,7 @@ public:
     return output;
   }
 
-  void setParams(float k_p, float k_i, float k_d, float max_out)
+  void setParams(float k_p, float k_i, float k_d, float max_out=1.0)
   {
     k_p_ = k_p;
     k_i_ = k_i;
@@ -85,16 +85,16 @@ public:
 
 private:
 
-  float last_error_; 
-  float last_de_dt_; 
-  float integrated_error_; 
-
   float k_p_; 
   float k_i_; 
   float k_d_; 
 
   float max_out_;
   float min_out_;
+
+  float last_error_; 
+  float last_de_dt_; 
+  float integrated_error_; 
 
   // float time_start_;
   // float time_end_;
@@ -119,10 +119,12 @@ const int INC[2] = {-1, 1};
 const int VEL_PERIOD = 30;     // in milliseconds
 
 
+const float VEL_THRESH = 10.0;
+
 // CONTROLLER PARAMETERS
-const float KP_VELOCITY_FAST = 0.021;
-const float KI_VELOCITY_FAST = 0.000000005;
-const float KD_VELOCITY_FAST = 0.000144;
+const float KP_VELOCITY_FAST = 0.013;
+const float KI_VELOCITY_FAST = 0.01;
+const float KD_VELOCITY_FAST = 0.000742;
 
 
 const float KP_VELOCITY_SLOW = 0.015;;
@@ -147,7 +149,7 @@ volatile float velocity = 0;
 
 volatile int t_before = 0;
 volatile int t_now = 0;
-volatile int t_diff = 10000000000; // revolutions/sec is 1/t_diff
+volatile int t_diff = 100000000; // revolutions/sec is 1/t_diff
 volatile int t_diff_temp=0;
 
 volatile float pwm_duty_cycle = 1;
@@ -159,23 +161,26 @@ volatile int rots;
 
 volatile float R = 0;
 volatile float V = 0;  // Command line arguments
-volatile bool r_updated, v_updated;  // True if R, V were updated during the last command
+volatile bool r_cmd = false, v_cmd = false, n_cmd = false;  // True if R, V were updated during the last command
 volatile uint8_t* N;
 volatile uint8_t* D;
-volatile int8_t SIZE; // Size of N and D
+volatile int8_t melody_size=0; // Size of N and D
 
 Timer t;
 
 Thread thread_v(osPriorityNormal, 500);
 Thread thread_spin(osPriorityNormal, 500);
 Thread thread_vel_control;
-Thread thread_parser(osPriorityNormal, 700);
+//Thread thread_music;
+
+// Thread thread_parser(osPriorityNormal, 700);
 // int pwm_on = 0.5;
 
-// PidController vel_controller(0.01, 0.00000001, 0.1, 1.0);
-PidController vel_controller(0.013, 0.01, 0.000742, 1.0); //PID values from ZiglerNicholas [0.021, 0.07636363636363636, 0.0014437500000000002]
+// PidController vel_controller(0.01, 0.00000001, 0.1);
+//PID values from ZiglerNicholas [0.021, 0.07636363636363636, 0.0014437500000000002]
+PidController vel_controller(KP_VELOCITY_FAST, KI_VELOCITY_FAST, KD_VELOCITY_FAST); 
 //PidController pos_controller(100.0, 0.0, 0.0 0.0 1.0);
-// PidController vel_controller(0.018, 0.109, 0.000742, 1.0); //PID values from ZiglerNicholas [0.021, 0.07636363636363636, 0.0014437500000000002]
+// PidController vel_controller(0.018, 0.109, 0.000742); //PID values from ZiglerNicholas [0.021, 0.07636363636363636, 0.0014437500000000002]
 
 
 
@@ -326,9 +331,8 @@ void spin(){
 void velocity_thread(){
     float curr_velocity = 0;
     int tick_before, tick_after;
-    float result;
     while(1){
-        if (velocity < 10 && velocity > -10){
+        if (velocity < VEL_THRESH && velocity > -VEL_THRESH){
             tick_before = tick;
             Thread::wait(VEL_PERIOD);
             tick_after = tick;
@@ -349,7 +353,7 @@ void velocity_thread(){
 
 void velocity_control_thread(){
     while(1){
-        pwm_duty_cycle = vel_controller.computeOutput(ref_vel, velocity, (float)VEL_PERIOD/1000.0);
+        pwm_duty_cycle = vel_controller.computeOutput(V, velocity, (float)VEL_PERIOD/1000.0);
         // PRINT_DEBUG("Duty: 0.%03d",(int)(pwm_duty_cycle*1000))
         Thread::wait(VEL_PERIOD);
     }
@@ -358,77 +362,59 @@ void velocity_control_thread(){
 // ======================================== PARSER ========================================
 
 bool parseCmd(char* in, float& r, float& v, bool& r_cmd, bool& v_cmd){
-
     char buf_r[7] = {0};
     char buf_v[7] = {0};
-    if((in[0] == 'R') && (strchr(in,'V') != NULL)){ // R and V command
-        
-        int pos;
-        for(int i=0;i<=strlen(in);i++){
-            if(in[i] == 'V'){
-                pos = i;
-            }
-        }
+    char* v_pos = strchr(in,'V');
+    
+    char *r_val_start, *v_val_start;
+    int r_val_len, v_val_len;
+    
+    if((in[0] == 'R') && (v_pos != NULL)){ // R and V command
+        r_val_start = in + 1;
+        r_val_len = v_pos - r_val_start;
+        v_val_len = (in + strlen(in)) - (v_pos+1);
 
-        for(int i=1;i<pos;i++){
-            buf_r[i-1] = in[i];
-        }
-        for(int i=pos+1;i<strlen(in);i++){
-            buf_v[i-pos-1] = in[i];
-        }
-        //pc.printf("buf_r: %s, buf_v: %s", buf_r, buf_v);
-
-        r = atof(buf_r);
-        v = atof(buf_v);
-
-        if (r>999.99 || r<-999.99){
-            return false;
-        }
-        if (v>999.99 || v<-999.99){
-            return false;
-        }
-
-        if(v < 0){
-            v = 0 - v;
-        }
         r_cmd = true;
         v_cmd = true;
-        
-        return true;
     }
-    if(in[0] == 'V'){ // Only V command
-        for(int i=1;i<=strlen(in);i++){
-            buf_v[i-1] = in[i];
-        }
-        //pc.printf("buf_v: %s\r\n", buf_v);
-        v = atof(buf_v);
-
-        if (v>999.99 || v<-999.99){
-            return false;
-        }
-
-        r_cmd = false;
-        v_cmd = true;
-
-        return true;
-    }
-    else if(in[0] == 'R'){ // Only R command
-        for(int i=1;i<=strlen(in);i++){
-            buf_r[i-1] = in[i];
-        }
-        //pc.printf("buf_r: %s\r\n", buf_r);
-        r = atof(buf_r);
-
-        if (r>999.99 || r<-999.99){
-            return false;
-        }
-
+    // Only R command
+    else if(in[0] == 'R'){ 
+        r_val_start = in + 1;
+        r_val_len = (in + strlen(in)) - r_val_start;
+ 
         r_cmd = true;
         v_cmd = false;
-
-        return true;
     }
-    return false;   // Used for invalid input commands, deal with at higher level
+    // Only V command
+    else if(in[0] == 'V'){ 
+        v_val_start = in + 1;
+        v_val_len = (in + strlen(in)) - v_val_start;
+        
+        r_cmd = false;
+        v_cmd = true;
+    }
+
+    // Used for invalid input commands, deal with at higher level
+    if(!r_cmd && !v_cmd) return false;
+
+    if(r_cmd){
+        // Copy the R value in buf_r
+        memcpy( buf_r, r_val_start, r_val_len);
+        r = atof(buf_r);
+        //if (r>999.99 || r<-999.99)  return false;
+    }
+
+    if(v_cmd){
+        // Copy the V value in buf_v
+        memcpy( buf_v, v_val_start, v_val_len);
+        v = atof(buf_v);
+        // Make the v positive if r was also specified
+        if(v < 0.0 && r_cmd)     v = 0.0 - v;
+
+        //if (v>999.99 || v<-999.99)  return false;
+    }
+
+    return true;   
 }
 
 
@@ -468,49 +454,122 @@ bool parseNote(char* in, uint8_t* note, uint8_t* duration, int8_t& size){
 }
 
 
-Thread process_thread();
-
 void parse_input_thread(){
-    char input[16];
-    float r, v;
+    char input[49];
+    float r_tmp, v_tmp;
     uint8_t n[16];
     uint8_t d[16];
     int8_t s = 0;
     //bool cmd, r_cmd, v_cmd;
-    bool r_cmd, v_cmd;
+    //bool r_updated, v_updated, n_updated;
+    bool r_updated, v_updated;
+
+    // Make the pointers point to the array with the notes
+    N = n;
+    D = d;
 
     while(1){
+        r_updated = false;
+        v_updated = false;
+
         pc.scanf("%s", input);
 
         if ( parseNote(input, n, d, s) ){
-
-            N = n;
-            D = d;
-            SIZE = s;
-            for(int i=0; i<SIZE; i++){
+            // N = n;
+            // D = d;
+            n_cmd = true;
+            for(int i=0; i<s; i++){
                 PRINT_DEBUG("Note: %u, Duration: %u", N[i], D[i]);
             }
-
-
         }
-        if( parseCmd(input, r, v, r_cmd, v_cmd) ){
-            if(r_cmd && v_cmd){
-                R = r;
-                V = v;
-            }
-            else if(r_cmd){
-                R = r;
-            }
-            else if(v_cmd){
-                V = v;
-            }
-            r_updated = r_cmd;
-            v_updated = v_cmd;
-            PRINT_DEBUG("R: %d, V: %d", int(R), int(V));
+        else if( parseCmd(input, r_tmp, v_tmp, r_updated, v_updated) ){
+            n_cmd = false;
+            r_cmd = r_updated;
+            v_cmd = v_updated;
+
+            PRINT_DEBUG("R: %de-3 V: %de-3",
+              (int)(R*1000),
+              (int)(V*1000)
+            );
         }      
+        
+        // Notes command:    n_cmd=true
+        // Rotation command: r_cmd = true
+        // Velocity command: v_cmd = true
+        // Autotune command: r_cmd=false, v_cmd=False, n_cmd=false
+        // States - n_cmd=true 
+
+        terminateControlThreads();        
+
+        // Update reference values - does not matter if not meaningful: will be ignored by controlOutput()
+        R = r_tmp;
+        V = v_tmp;
+        SIZE = s;
+
+        // Start the threads to control the behaviour
+        controlOutput();
     }
 }
 
+void terminateControlThreads(){
+    // Stop the velocity control threads
+    thread_spin.terminate();
+    thread_vel_control.terminate();
+
+    // Reset the controllers for the next run
+    vel_controller.reset();
+    pos_controller.reset();
+}
+
+void controlOutput(){
+    // Music Command
+    if (n_cmd) {
+        PRINT_DEBUG("Notes not working yet");
+        // Play music
+        thread_spin.start(spin);
+        thread_music.start(play_music_thread);
+    }
+
+    else{
+        // Autotune command
+        if(!v_cmd && !r_cmd){
+            PRINT_DEBUG("Autotune not working yet");
+        }
+
+        // Position/Velocity command
+        else{
+            // Update controller parameters
+            if (v_cmd) {
+                if(V < VEL_THRESH)  vel_controller.setParams(KP_VELOCITY_FAST, KI_VELOCITY_FAST, KD_VELOCITY_FAST);
+                else                vel_controller.setParams(KP_VELOCITY_SLOW, KI_VELOCITY_SLOW, KD_VELOCITY_SLOW);
+
+                // Start velocity control thread
+                thread_vel_control.start(velocity_control_thread);
+            }
+
+            if(r_cmd){
+                PRINT_DEBUG("Position control not working yet");
+                // if(R < VEL_THRESH)  pos_controller.setParams(KP_VELOCITY_FAST, KI_VELOCITY_FAST, KD_VELOCITY_FAST);
+                // else                pos_controller.setParams(KP_VELOCITY_SLOW, KI_VELOCITY_SLOW, KD_VELOCITY_SLOW);
+            }
+
+            // Start the thread that spins the motor
+            thread_spin.start(spin);
+
+        }
+    }
+}
+
+void play_music_thread(){
+    pwm_duty_cycle = 0.5;
+    while(1){
+        for(int i=0; i<melody_size; i++){
+            set_pwm(N[i]);
+            Thread::wait(D[i]);
+            // PRINT_DEBUG("Note: %u, Duration: %u", N[i], D[i]);
+        }
+    }
+}
 
 
 // ======================================== MAIN ========================================
@@ -522,7 +581,8 @@ int main() {
     // =============================
 
     CHA.rise(&CHA_rise_isr);
-    I1.rise(&I1_isr);
+    I1.rise(&I1_isr_rise);
+    I1.fall(&I1_isr_fall);
 
 
     // =============================
@@ -550,25 +610,17 @@ int main() {
     // // Begin threads
     t.start();
 
-    ref_vel = 20.0;
-
-    // if(ref_vel < 10.0){
-    //   vel_controller.setParams(KP_VELOCITY_FAST, KI_VELOCITY_FAST, KD_VELOCITY_FAST, 1.0);
-    // }
-    // else {
-    //   vel_controller.setParams(KP_VELOCITY_SLOW, KI_VELOCITY_SLOW, KD_VELOCITY_SLOW, 1.0);
-    // }
-
-    thread_spin.start(spin);
-    thread_vel_control.start(velocity_control_thread);
-    thread_parser.start(parse_input_thread);
-
+    // ref_vel = 20.0;
+    // thread_spin.start(spin);
+    // thread_vel_control.start(velocity_control_thread);
 
     while (1){
+        parse_input_thread();
+
         // set_pwm(239);
         // PRINT_DEBUG("Tick: %d", tick);
         // Thread::wait(100);
-         // PRINT_DEBUG("Vel:%d.%03d",(int)(velocity),abs((int)(velocity*1000)%1000));
+        // PRINT_DEBUG("Vel:%d.%03d",(int)(velocity),abs((int)(velocity*1000)%1000));
         // PRINT_DEBUG("Ticks: %d",tick);
         // PRINT_DEBUG("Rots: %d",rots)
         Thread::wait(100);
