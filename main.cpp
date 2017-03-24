@@ -28,7 +28,7 @@ public:
     float de_dt = (error - last_error_ ) / dt;
 
     // Do smoothing (numeric derivatives are noisy):
-    de_dt = 0.8 * last_de_dt_ + 0.2 * de_dt;
+    // de_dt = 0.5 * last_de_dt_ + 0.5 * de_dt;
 
     // compute output:
     float output = k_p_ * error + k_i_ * integrated_error_ + k_d_ * de_dt;
@@ -44,7 +44,7 @@ public:
       // clamp -- and DO NOT INTEGRATE ERROR (anti- reset windup)
       output = 0; 
     } 
-    else if (error < 0.2*measurement)
+    else if (error < 0.2*measurement && error > -0.2*measurement)
     {
       integrated_error_ += error * dt; 
     }
@@ -53,7 +53,7 @@ public:
     last_error_ = error;
     last_de_dt_ = de_dt;
     
-    // PRINT_DEBUG("Vel: %d.%03d Err: %d.%03d P: %d.%03d I: %d.%06d D: %d.%06d",
+    // PRINT_DEBUG("Vel: %d.%03d Err: %d.%03d P: %d.%03d I: %d.%09d D: %d.%09d",
     //   (int)(measurement),
     //   abs((int)(measurement*1000)%1000),
     //   (int)(error),
@@ -61,10 +61,19 @@ public:
     //   (int)(k_p_*error),
     //   abs((int)(k_p_*error*1000)%1000),
     //   (int)(k_i_*integrated_error_),
-    //   abs((int)(k_i_*integrated_error_*1000000)%1000000),
+    //   abs((int)(k_i_*integrated_error_*1000000000)%1000000000),
     //   (int)(k_d_*de_dt),
-    //   abs((int)(k_d_*de_dt*1000000)%1000000)
+    //   abs((int)(k_d_*de_dt*1000000000)%1000000000)
     // );
+
+    PRINT_DEBUG("Vel: %d.%03d Err: %de-9 P: %de-9 I: %de-9 D: %de-9",
+      (int)(measurement),
+      abs((int)(measurement*1000)%1000),
+      (int)(error*1000000000),
+      (int)(k_p_*error*1000000000),
+      (int)(k_i_*integrated_error_*1000000000),
+      (int)(k_d_*de_dt*1000000000)
+    );
 
     //PRINT_DEBUG("Error: %d", (int)(error*1000));
 //    PRINT_DEBUG("Output: %d", (int)(output*1000));
@@ -124,7 +133,7 @@ const int8_t lead = -2;  // 2 for forwards, -2 for backwards
 // Increment values for the ticks encoder
 const int INC[2] = {-1, 1};
 
-const int VEL_PERIOD = 100;     // in milliseconds
+const int VEL_PERIOD = 30;     // in milliseconds
 
 const float KP_VELOCITY_FAST = 0.021;
 const float KI_VELOCITY_FAST = 0.000000005;
@@ -147,7 +156,8 @@ volatile float velocity = 0;
 
 volatile int t_before = 0;
 volatile int t_now = 0;
-volatile int t_diff = 0; // revolutions/sec is 1/t_diff
+volatile int t_diff = 10000000000; // revolutions/sec is 1/t_diff
+volatile int t_diff_temp=0;
 
 volatile float pwm_duty_cycle = 0.5;
 volatile int pwm_period = 400; // in microseconds
@@ -165,8 +175,9 @@ Thread thread_vel_control;
 // int pwm_on = 0.5;
 
 // PidController vel_controller(0.01, 0.00000001, 0.1, 1.0);
-PidController vel_controller(KP_VELOCITY_FAST, KI_VELOCITY_FAST, KD_VELOCITY_FAST, 1.0); //PID values from ZiglerNicholas [0.021, 0.07636363636363636, 0.0014437500000000002]
+PidController vel_controller(0.013, 0.03, 0.000742, 1.0); //PID values from ZiglerNicholas [0.021, 0.07636363636363636, 0.0014437500000000002]
 //PidController pos_controller(100.0, 0.0, 0.0 0.0 1.0);
+// PidController vel_controller(0.018, 0.109, 0.000742, 1.0); //PID values from ZiglerNicholas [0.021, 0.07636363636363636, 0.0014437500000000002]
 
 int8_t orState = 0;    //Rotot offset at motor state 0
 
@@ -183,15 +194,13 @@ inline void CHA_rise_isr() {
     // tick += (1>>val);
     // tick -= (1>>!val);
 
-
 inline void I1_rise_isr(){
-
     t_now = t.read_us();
-    int t_diff_temp = t_now-t_before;
-    if(t_diff_temp > 0.01){ // Ignore if the duration is too small (implying glitch)
-        rots++;
-        t_diff = t_now-t_before;
-        t_before = t_now;
+    t_diff_temp = t_now-t_before;
+    if(t_diff_temp > 10000){ // Ignore if the duration is too small (implying glitch)
+      t_diff = t_diff_temp;
+      t_before = t_now;
+      rots++;
     }
 }
 
@@ -269,7 +278,7 @@ int8_t motorHome() {
         PRINT_DEBUG("Waiting to stabilise");
         wait(1.0);
         curr_state = readRotorState();
-        stable = (velocity == 0) && (curr_state == prev_state);
+        stable = (curr_state == prev_state);
         // stable = (curr_state == 0) && (curr_state == prev_state);
 
         prev_state = curr_state;
@@ -313,8 +322,7 @@ void velocity_thread(){
           velocity = 1000.0/(VEL_PERIOD)*(tick_after-tick_before)/117.0;
         }
         else {
-          result = 1000000.0/(float)t_diff;
-          velocity = result;
+          velocity = 1000000.0/(float)t_diff;
           Thread::wait(VEL_PERIOD);
         }
 
@@ -325,8 +333,8 @@ void velocity_thread(){
 
 void velocity_control_thread(){
     while(1){
-        pwm_duty_cycle = vel_controller.computeOutput(ref_vel, velocity, VEL_PERIOD*1000);
-        PRINT_DEBUG("Duty: 0.%03d",(int)(pwm_duty_cycle*1000))
+        pwm_duty_cycle = vel_controller.computeOutput(ref_vel, velocity, (float)VEL_PERIOD/1000.0);
+        // PRINT_DEBUG("Duty: 0.%03d",(int)(pwm_duty_cycle*1000))
         Thread::wait(VEL_PERIOD);
     }
 }
@@ -368,7 +376,7 @@ int main() {
     // // Begin threads
     t.start();
 
-    ref_vel = 16.0;
+    ref_vel = 20.0;
 
     // if(ref_vel < 10.0){
     //   vel_controller.setParams(KP_VELOCITY_FAST, KI_VELOCITY_FAST, KD_VELOCITY_FAST, 1.0);
@@ -378,14 +386,14 @@ int main() {
     // }
 
     thread_spin.start(spin);
-    // thread_vel_control.start(velocity_control_thread);
+    thread_vel_control.start(velocity_control_thread);
 
 
     while (1){
         // set_pwm(239);
         // PRINT_DEBUG("Tick: %d", tick);
         // Thread::wait(100);
-        PRINT_DEBUG("Vel:%d.%03d",(int)(velocity),abs((int)(velocity*1000)%1000));
+        // PRINT_DEBUG("Vel:%d.%03d",(int)(velocity),abs((int)(velocity*1000)%1000));
         // PRINT_DEBUG("Ticks: %d",tick);
         // PRINT_DEBUG("Rots: %d",rots)
         Thread::wait(100);
