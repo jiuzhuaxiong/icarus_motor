@@ -1,5 +1,5 @@
 #include <stdio.h>
-#include <cstring>
+#include <string.h>
 #include <stdlib.h>
 
 #define ROTATION = 117;
@@ -52,14 +52,14 @@ int main(){
 	return 0;
 }
 
-bool parseCmd(char* in, float& r, float& v){
+bool parseCmd(char* in, float& r, float& v, bool& r_cmd, bool& v_cmd,){
 
 	char buf_r[7] = {0};
 	char buf_v[7] = {0};
-	if((in[0] == 'R') && (std::strchr(in,'V') != NULL)){	// R and V command
+	if((in[0] == 'R') && (strchr(in,'V') != NULL)){	// R and V command
 		
 		int pos;
-		for(int i=0;i<=std::strlen(in);i++){
+		for(int i=0;i<=strlen(in);i++){
 			if(in[i] == 'V'){
 				pos = i;
 			}
@@ -68,7 +68,7 @@ bool parseCmd(char* in, float& r, float& v){
 		for(int i=1;i<pos;i++){
 			buf_r[i-1] = in[i];
 		}
-		for(int i=pos+1;i<std::strlen(in);i++){
+		for(int i=pos+1;i<strlen(in);i++){
 			buf_v[i-pos-1] = in[i];
 		}
 		printf("buf_r: %s, buf_v: %s", buf_r, buf_v);
@@ -84,12 +84,15 @@ bool parseCmd(char* in, float& r, float& v){
 		}
 
 		if(v < 0){
-			v *= -1;
+			v = 0 - v;
 		}
+		r_cmd = true;
+		v_cmd = true;
+		
 		return true;
 	}
 	if(in[0] == 'V'){ // Only V command
-		for(int i=1;i<=std::strlen(in);i++){
+		for(int i=1;i<=strlen(in);i++){
 			buf_v[i-1] = in[i];
 		}
 		printf("buf_v: %s\r\n", buf_v);
@@ -99,11 +102,13 @@ bool parseCmd(char* in, float& r, float& v){
 			return false;
 		}
 
-		memset((char*) &r, -1, sizeof(float)); // Used for when R does not change
+		r_cmd = false;
+		v_cmd = true;
+
 		return true;
 	}
 	else if(in[0] == 'R'){ // Only R command
-		for(int i=1;i<=std::strlen(in);i++){
+		for(int i=1;i<=strlen(in);i++){
 			buf_r[i-1] = in[i];
 		}
 		printf("buf_r: %s\r\n", buf_r);
@@ -113,7 +118,9 @@ bool parseCmd(char* in, float& r, float& v){
 			return false;
 		}
 
-		memset((char*) &v, -1, sizeof(float)); // Used for when V does not change
+		r_cmd = true;
+		v_cmd = false;
+
 		return true;
 	}
 	return false;	// Used for invalid input commands, deal with at higher level
@@ -135,7 +142,7 @@ bool parseNote(char* in, int* note, int* duration, int& size){
 	if(in[0] == 'T'){
 		int i=1;
 		int j=0;
-		while(i<std::strlen(in)){
+		while(i<strlen(in)){
 			if(in[i+1] == '#'){
 				int idx = in[i] & 0x0F;
 				note[j] = sharps[idx-1];
@@ -165,3 +172,4 @@ bool parseNote(char* in, int* note, int* duration, int& size){
 	}
 	return false;
 }
+
