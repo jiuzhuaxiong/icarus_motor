@@ -145,15 +145,24 @@ volatile int8_t rotorState;
 
 volatile float velocity = 0;
 
-volatile int t_before = 0;
-volatile int t_now = 0;
-volatile int t_diff = 100000000; // revolutions/sec is 1/t_diff
+volatile int t_before_rise = 0;
+volatile int t_now_rise = 0;
+volatile int t_before_fall = 0;
+volatile int t_now_fall = 0;
+volatile int t_diff = 2147482647; // revolutions/sec is 1/t_diff
+
 volatile int t_diff_temp=0;
 
 volatile float pwm_duty_cycle = 1;
 volatile int pwm_period = 400; // in microseconds
 
 volatile int rots;
+
+volatile int rots = 0;
+volatile int tick_offset = 0;
+volatile int tick_adjust = 0;
+volatile float rotations = 0;
+Mutex tick_adjust_mutex;
 
 volatile float R = 0;
 volatile float V = 0;  // Command line arguments
@@ -169,6 +178,8 @@ int8_t lead = -2;  // 2 for forwards, -2 for backwards
 
 Timer t;
 
+Thread thread_diff(osPriorityNormal, 300);
+Thread thread_r(osPriorityNormal, 500);
 Thread thread_v(osPriorityNormal, 500);
 Thread thread_spin(osPriorityNormal, 500);
 Thread thread_vel_control;
@@ -200,27 +211,52 @@ inline void CHA_rise_isr() {
     // tick += (1>>val);
     // tick -= (1>>!val);
 
+
+
+
 inline void I1_isr_rise(){
     if(I2){
-        t_now = t.read_us();
-        t_diff_temp = t_now-t_before;
+
+        if(!tick_offset){
+            tick_offset=(tick%117+117)%117;
+            rots++;
+        }
+        t_now_rise = t.read_us();
+        t_diff_temp = t_now_rise-t_before_rise;
+
         if(t_diff_temp > 10000){ // Ignore if the duration is too small (implying glitch)
-          t_diff = t_diff_temp;
-          t_before = t_now;
-          rots++;
+            t_diff = -t_diff_temp;
+            t_before_rise = t_now_rise;
+            rots--;
+            if (velocity > VEL_THRESH && velocity < -VEL_THRESH){
+                tick_adjust_mutex.lock();
+                tick_adjust = (rots*117)+tick_offset;
+                tick_adjust_mutex.unlock();
+            }
         }
     }
 }
 
 inline void I1_isr_fall(){
     if(I2){
-        t_now = t.read_us();
-        t_diff_temp = t_now-t_before;
-        if(t_diff_temp > 10000){ // Ignore if the duration is too small (implying glitch)
-          t_diff = -t_diff_temp;
-          t_before = t_now;
-          rots++;
+
+        if(!tick_offset){
+            tick_offset=(tick%117+117)%117;
         }
+
+        t_now_fall = t.read_us();
+        t_diff_temp = t_now_fall-t_before_fall;
+        if(t_diff_temp > 10000){ // Ignore if the duration is too small (implying glitch)
+          t_diff = t_diff_temp;
+          t_before_fall = t_now_fall;
+          rots++;
+            if (velocity > VEL_THRESH && velocity < -VEL_THRESH){
+                tick_adjust_mutex.lock();
+                tick_adjust = ((rots-1)*117)+tick_offset;
+                tick_adjust_mutex.unlock();
+            }
+        }   
+
     }
 }
 
@@ -302,6 +338,10 @@ int8_t motorHome() {
         prev_state = curr_state;
     }
 
+    rots = 0;
+    rotations = 0;
+    tick = 0;
+
     //Get the rotor state
     return readRotorState();
 }
@@ -328,24 +368,40 @@ void spin(){
     }
 }
 
+volatile int tick_diff;
+
+void tick_diff_thread(){
+    int tick_before;
+    while(1){
+        tick_before = tick;
+        Thread::wait(VEL_PERIOD);
+        tick_diff = tick-tick_before;
+    }
+}
+
+void rotations_thread(){
+    while(1){
+        if(tick_adjust_mutex.trylock()){
+            tick_adjust += tick_diff;
+        }
+        rotations = (float)tick_adjust/117.0;
+        Thread::wait(VEL_PERIOD);
+    }
+}
+
 
 void velocity_thread(){
     float curr_velocity = 0;
-    int tick_before, tick_after;
     while(1){
         if (velocity < VEL_THRESH && velocity > -VEL_THRESH){
-            tick_before = tick;
-            Thread::wait(VEL_PERIOD);
-            tick_after = tick;
-            curr_velocity = 1000.0/(VEL_PERIOD)*(tick_after-tick_before)/117.0;
+            curr_velocity = 1000.0/(VEL_PERIOD)*(tick_diff)/117.0;
             velocity = 0.2*curr_velocity +0.8*velocity;
-
         }
         else {
             curr_velocity = 1000000.0/(float)t_diff; // 1 revolutions * 10^6 pecoseconds
             velocity = 0.2*curr_velocity +0.8*velocity;
-            Thread::wait(VEL_PERIOD);
         }
+        Thread::wait(VEL_PERIOD);
 
     }
 
@@ -544,8 +600,9 @@ void parse_input_thread(){
                 // if (input[in_idx] == '\0') command = true;
                 if (input[in_idx] == '\r' || input[in_idx] == '\n'){
                     command = true;
+                    in_idx = 0;
                 } 
-                in_idx++;
+                else in_idx++;
             }
             Thread::wait(100);
         }
@@ -599,10 +656,6 @@ int main() {
     // Test MAIN
     // =============================
 
-    CHA.rise(&CHA_rise_isr);
-    I1.rise(&I1_isr_rise);
-    I1.fall(&I1_isr_fall);
-
 
     // =============================
     // Original MAIN
@@ -618,11 +671,18 @@ int main() {
 
     PRINT_DEBUG("Starting velocity thread");
 
-    thread_v.start(velocity_thread);
-
+    thread_diff.start(tick_diff_thread);
+    // thread_v.start(velocity_thread);
+    thread_r.start(rotations_thread);
 
     PRINT_DEBUG("Synchronising state");
     orState = motorHome();
+
+
+    CHA.rise(&CHA_rise_isr);
+    I1.rise(&I1_isr_rise);
+    I1.fall(&I1_isr_fall);
+
 
 
     PRINT_DEBUG("Starting timer");
@@ -648,4 +708,17 @@ int main() {
     //     // PRINT_DEBUG("Rots: %d",rots)
     //     Thread::wait(100);
     // }
+    while (1){
+        // parse_input_thread();
+
+        // // set_pwm(239);
+        // PRINT_DEBUG("Tick: %d", tick);
+        // // Thread::wait(100);
+        // // PRINT_DEBUG("Vel:%d.%03d",(int)(velocity),abs((int)(velocity*1000)%1000));
+        // // PRINT_DEBUG("Ticks: %d",tick);
+        // PRINT_DEBUG("Rots: %d",rots)
+        PRINT_DEBUG("%d.%d",(int)rotations,(int)(rotations*100)%100);
+        Thread::wait(100);
+    }
+
 }

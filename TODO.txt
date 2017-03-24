@@ -22,7 +22,6 @@ FIXES TO DO PID:
 
 MAIN BEHAVIOUR:
     - uncomment other threads - make sure you satisfy mem requirements
-    - parsing input - how do you do it without scanf and without stalling the CPU
 
 
     - rotate home after completing a task (if needed)
