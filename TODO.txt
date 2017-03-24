@@ -1,5 +1,5 @@
-NIKOLAY:
 
+REPORT:
     - figure out what is the model for speed/position vs PWM - google
 
     - rotations - how do you model your controller
@@ -12,6 +12,9 @@ NIKOLAY:
 WHAT IS THE EXPECTED BEHAVIOUR:
     - what is the expected behaviour when we receive a new input while we are executing a current taks
 
+    - what does he mean by accuracy of 0.01 - does it mean no osciallation higher than 0.01 or the average should not deviate more than 0.01 of the target
+    - what is the expected behaviour for rotation - it is rotations from the point we start, right
+    - is filtering measurements correct thing to do 
 
 
 FIXES TO DO PID:
@@ -21,6 +24,27 @@ FIXES TO DO PID:
     - when do you reset controller - need to do that after you get new input
 
     - melody repeated
+
+    - to average velocity use all photosensors and average speed between 3 of them
+
+PARSER:
+    - print the size that the thread is using now
+    - did ben test with all threads running
+    - uncomment other threads - make sure you satisfy mem requirements
+
+
+
+REPORT:
+    - velocity measurement filtering
+    - derivative filtering
+    - frequency of measuring velocity - no need to be higher than frequency of controller - even bad if it is higher
+
+
+
+
+NOW:
+ - integrate parser
+
 
 BEN:
     - parse instructions
