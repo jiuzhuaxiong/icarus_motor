@@ -111,7 +111,6 @@ const int8_t STATE_MAP[] = {0x07,0x05,0x03,0x04,0x01,0x00,0x02,0x08};
 // const int8_t STATE_MAP[] = {0x07,0x01,0x03,0x02,0x05,0x00,0x04,0x07}; // Alternative if phase order of input or drive is reversed
 
 // Phase lead to make motor spin
-const int8_t lead = -2;  // 2 for forwards, -2 for backwards
 
 // Increment values for the ticks encoder
 const int INC[2] = {-1, 1};
@@ -125,7 +124,6 @@ const float VEL_THRESH = 10.0;
 const float KP_VELOCITY_FAST = 0.013;
 const float KI_VELOCITY_FAST = 0.01;
 const float KD_VELOCITY_FAST = 0.000742;
-
 
 const float KP_VELOCITY_SLOW = 0.015;;
 const float KI_VELOCITY_SLOW = 0.000000002;
@@ -155,8 +153,6 @@ volatile int t_diff_temp=0;
 volatile float pwm_duty_cycle = 1;
 volatile int pwm_period = 400; // in microseconds
 
-volatile float ref_vel;
-
 volatile int rots;
 
 volatile float R = 0;
@@ -166,12 +162,17 @@ volatile uint8_t* N;
 volatile uint8_t* D;
 volatile int8_t melody_size=0; // Size of N and D
 
+char input[49];
+int8_t in_idx = 0;
+
+int8_t lead = -2;  // 2 for forwards, -2 for backwards
+
 Timer t;
 
 Thread thread_v(osPriorityNormal, 500);
 Thread thread_spin(osPriorityNormal, 500);
 Thread thread_vel_control;
-//Thread thread_music;
+Thread thread_music(osPriorityNormal, 500);     // Verify stack size
 
 // Thread thread_parser(osPriorityNormal, 700);
 // int pwm_on = 0.5;
@@ -359,6 +360,77 @@ void velocity_control_thread(){
     }
 }
 
+
+void play_music_thread(){
+    pwm_duty_cycle = 0.5;
+    while(1){
+        for(int i=0; i<melody_size; i++){
+            set_pwm(N[i]);
+            Thread::wait(D[i]);
+            // PRINT_DEBUG("Note: %u, Duration: %u", N[i], D[i]);
+        }
+    }
+}
+
+
+// ======================================== CONTROL FUNCTIONS ========================================
+
+
+void terminateControlThreads(){
+    // Stop the velocity control threads
+    thread_spin.terminate();
+    thread_vel_control.terminate();
+
+    // Reset the controllers for the next run
+    vel_controller.reset();
+    // pos_controller.reset();
+}
+
+
+void controlOutput(){
+    // Music Command
+    if (n_cmd) {
+        // Play music
+        thread_spin.start(spin);
+        thread_music.start(play_music_thread);
+    }
+
+    else{
+        // Autotune command
+        if(!v_cmd && !r_cmd){
+            PRINT_DEBUG("Autotune not working yet");
+        }
+
+        // Position/Velocity command
+        else{
+            // Update controller parameters
+            if (v_cmd) {
+                if(V > -VEL_THRESH && V < VEL_THRESH)  
+                    vel_controller.setParams(KP_VELOCITY_FAST, KI_VELOCITY_FAST, KD_VELOCITY_FAST);
+                else                                    
+                    vel_controller.setParams(KP_VELOCITY_SLOW, KI_VELOCITY_SLOW, KD_VELOCITY_SLOW);
+
+                if (V < 0)  lead = -2;
+                else        lead = 2;
+
+                // Start velocity control thread
+                thread_vel_control.start(velocity_control_thread);
+            }
+
+            if(r_cmd){
+                PRINT_DEBUG("Position control not working yet");
+                // if(R < VEL_THRESH)  pos_controller.setParams(KP_VELOCITY_FAST, KI_VELOCITY_FAST, KD_VELOCITY_FAST);
+                // else                pos_controller.setParams(KP_VELOCITY_SLOW, KI_VELOCITY_SLOW, KD_VELOCITY_SLOW);
+            }
+
+            // Start the thread that spins the motor
+            thread_spin.start(spin);
+        }
+    }
+}
+
+
+
 // ======================================== PARSER ========================================
 
 bool parseCmd(char* in, float& r, float& v, bool& r_cmd, bool& v_cmd){
@@ -401,7 +473,6 @@ bool parseCmd(char* in, float& r, float& v, bool& r_cmd, bool& v_cmd){
         // Copy the R value in buf_r
         memcpy( buf_r, r_val_start, r_val_len);
         r = atof(buf_r);
-        //if (r>999.99 || r<-999.99)  return false;
     }
 
     if(v_cmd){
@@ -410,8 +481,6 @@ bool parseCmd(char* in, float& r, float& v, bool& r_cmd, bool& v_cmd){
         v = atof(buf_v);
         // Make the v positive if r was also specified
         if(v < 0.0 && r_cmd)     v = 0.0 - v;
-
-        //if (v>999.99 || v<-999.99)  return false;
     }
 
     return true;   
@@ -455,13 +524,11 @@ bool parseNote(char* in, uint8_t* note, uint8_t* duration, int8_t& size){
 
 
 void parse_input_thread(){
-    char input[49];
+    bool command;
     float r_tmp, v_tmp;
     uint8_t n[16];
     uint8_t d[16];
     int8_t s = 0;
-    //bool cmd, r_cmd, v_cmd;
-    //bool r_updated, v_updated, n_updated;
     bool r_updated, v_updated;
 
     // Make the pointers point to the array with the notes
@@ -469,28 +536,31 @@ void parse_input_thread(){
     D = d;
 
     while(1){
+        command = false;
+        
+        while (!command){
+            if (pc.readable()){
+                input[in_idx] = pc.getc();
+                // if (input[in_idx] == '\0') command = true;
+                if (input[in_idx] == '\r' || input[in_idx] == '\n'){
+                    command = true;
+                } 
+                in_idx++;
+            }
+            Thread::wait(100);
+        }
+
         r_updated = false;
         v_updated = false;
 
-        pc.scanf("%s", input);
-
         if ( parseNote(input, n, d, s) ){
-            // N = n;
-            // D = d;
             n_cmd = true;
-            for(int i=0; i<s; i++){
-                PRINT_DEBUG("Note: %u, Duration: %u", N[i], D[i]);
-            }
         }
         else if( parseCmd(input, r_tmp, v_tmp, r_updated, v_updated) ){
             n_cmd = false;
             r_cmd = r_updated;
             v_cmd = v_updated;
 
-            PRINT_DEBUG("R: %de-3 V: %de-3",
-              (int)(R*1000),
-              (int)(V*1000)
-            );
         }      
         
         // Notes command:    n_cmd=true
@@ -504,70 +574,19 @@ void parse_input_thread(){
         // Update reference values - does not matter if not meaningful: will be ignored by controlOutput()
         R = r_tmp;
         V = v_tmp;
-        SIZE = s;
+        melody_size = s;
+
+        if (n_cmd){
+            for(int i=0; i<s; i++){
+                PRINT_DEBUG("Note: %u, Duration: %u", N[i], D[i]);
+            }
+        }
+        else{
+            PRINT_DEBUG("R:%d.%03d V:%d.%03d", (int)(R), abs((int)(R*1000)%1000), (int)(V), abs((int)(V*1000)%1000));
+        }
 
         // Start the threads to control the behaviour
         controlOutput();
-    }
-}
-
-void terminateControlThreads(){
-    // Stop the velocity control threads
-    thread_spin.terminate();
-    thread_vel_control.terminate();
-
-    // Reset the controllers for the next run
-    vel_controller.reset();
-    pos_controller.reset();
-}
-
-void controlOutput(){
-    // Music Command
-    if (n_cmd) {
-        PRINT_DEBUG("Notes not working yet");
-        // Play music
-        thread_spin.start(spin);
-        thread_music.start(play_music_thread);
-    }
-
-    else{
-        // Autotune command
-        if(!v_cmd && !r_cmd){
-            PRINT_DEBUG("Autotune not working yet");
-        }
-
-        // Position/Velocity command
-        else{
-            // Update controller parameters
-            if (v_cmd) {
-                if(V < VEL_THRESH)  vel_controller.setParams(KP_VELOCITY_FAST, KI_VELOCITY_FAST, KD_VELOCITY_FAST);
-                else                vel_controller.setParams(KP_VELOCITY_SLOW, KI_VELOCITY_SLOW, KD_VELOCITY_SLOW);
-
-                // Start velocity control thread
-                thread_vel_control.start(velocity_control_thread);
-            }
-
-            if(r_cmd){
-                PRINT_DEBUG("Position control not working yet");
-                // if(R < VEL_THRESH)  pos_controller.setParams(KP_VELOCITY_FAST, KI_VELOCITY_FAST, KD_VELOCITY_FAST);
-                // else                pos_controller.setParams(KP_VELOCITY_SLOW, KI_VELOCITY_SLOW, KD_VELOCITY_SLOW);
-            }
-
-            // Start the thread that spins the motor
-            thread_spin.start(spin);
-
-        }
-    }
-}
-
-void play_music_thread(){
-    pwm_duty_cycle = 0.5;
-    while(1){
-        for(int i=0; i<melody_size; i++){
-            set_pwm(N[i]);
-            Thread::wait(D[i]);
-            // PRINT_DEBUG("Note: %u, Duration: %u", N[i], D[i]);
-        }
     }
 }
 
@@ -614,15 +633,19 @@ int main() {
     // thread_spin.start(spin);
     // thread_vel_control.start(velocity_control_thread);
 
-    while (1){
-        parse_input_thread();
+    // Run a while loop trying to parse     
+    parse_input_thread();
 
-        // set_pwm(239);
-        // PRINT_DEBUG("Tick: %d", tick);
-        // Thread::wait(100);
-        // PRINT_DEBUG("Vel:%d.%03d",(int)(velocity),abs((int)(velocity*1000)%1000));
-        // PRINT_DEBUG("Ticks: %d",tick);
-        // PRINT_DEBUG("Rots: %d",rots)
-        Thread::wait(100);
-    }
+
+    // while (1){
+    //     parse_input_thread();
+
+    //     // set_pwm(239);
+    //     // PRINT_DEBUG("Tick: %d", tick);
+    //     // Thread::wait(100);
+    //     // PRINT_DEBUG("Vel:%d.%03d",(int)(velocity),abs((int)(velocity*1000)%1000));
+    //     // PRINT_DEBUG("Ticks: %d",tick);
+    //     // PRINT_DEBUG("Rots: %d",rots)
+    //     Thread::wait(100);
+    // }
 }
