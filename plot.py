@@ -1,24 +1,36 @@
 import matplotlib.pyplot as plt
 
-REF = 17
 
 def main():
     out = []
     f = open("plots/vel.log")
     
+    measurement = []
+    error = []
+    p_term = []
+    i_term = []
+    d_term = []
+
     for r in f:
         try:
-            val = float(r)
-            out.append(val)
+            vals = [float(s) for s in vals.split() if s.isdigit()]
+            if len(vals == 5):
+                measurement.apppend(vals[0])
+                error.apppend(vals[1])
+                p_term.apppend(vals[2])
+                i_term.apppend(vals[3])
+                d_term.apppend(vals[4])
+
         except ValueError:
             pass
 
-    ref = [REF]*len(out)
+    print len(output)
 
-    print len(out)
-
-    plt.plot(out, label="output")
-    plt.plot(ref, label="reference")
+    plt.plot(measurement, label="measurement")
+    plt.plot(error, label="error")
+    plt.plot(p_term, label="proportional")
+    plt.plot(i_term, label="integral")
+    plt.plot(d_term, label="derivative")
     plt.grid()
     plt.legend()
     plt.show()
