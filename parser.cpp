@@ -7,12 +7,14 @@
 
 bool parseCmd(char* in, float& r, float& v);
 bool isNaN(const float& val);
-char* subString (const char* input, int offset, int len, char* dest);
-
+bool parseNote(char* in, int* note, int* duration, int& size);
 
 int main(){
 	char input[16];
 	float r,v;
+	int n[16];
+	int d[16];
+	int s = 0;
 
 	while(true){
 		printf("Input: \r\n");
@@ -24,7 +26,12 @@ int main(){
 			break;
 		}
 
-		if( !(parseCmd(input, r, v)) ){
+		if ( parseNote(input, n, d, s) ){
+			for(int i=0; i<s; i++){
+				printf("Note: %d, Duration: %d\r\n", n[i], d[i]);
+			}
+		}
+		else if( !(parseCmd(input, r, v)) ){
 			printf("Invalid input!\r\n");
 		}
 		else{
@@ -117,5 +124,44 @@ bool isNaN(const float& val){
 	bool lo = (bval & 0x0FFF) != 0;
 	bool hi = ((bval >> 24) & 0x7F) == 0x7F;
 	if(lo && hi){return true;}
+	return false;
+}
+
+bool parseNote(char* in, int* note, int* duration, int& size){
+	int notes[] = {142, 127, 239, 213, 190, 179, 159}; // A B C D E F G
+	int sharps[] = {134, 127, 225, 201, 179, 169, 150}; // A# B C# D# F F# G#
+	int flats[] = {150, 134, 245, 225, 201, 190, 190}; //A^ B^ C^ D^ E^ E G^
+
+	if(in[0] == 'T'){
+		int i=1;
+		int j=0;
+		while(i<std::strlen(in)){
+			if(in[i+1] == '#'){
+				int idx = in[i] & 0x0F;
+				note[j] = sharps[idx-1];
+				duration[j] = int(in[i+2]-'0');
+				i+=3;
+				j+=1;
+			}
+			else if(in[i+1] == '^'){
+				int idx = in[i] & 0x0F;
+				note[j] = flats[idx-1];
+				duration[j] = int(in[i+2]-'0');
+				i+=3;
+				j+=1;
+			}
+			else{
+				int idx = in[i] & 0x0F;
+				printf("Idx: %d\n", idx);
+				note[j] = notes[idx-1];
+				duration[j] = int(in[i+1]-'0');
+				i+=2;
+				j+=1;
+			}
+		}
+		printf("Size: %d\n", j);
+		size = j;
+		return true;
+	}
 	return false;
 }
