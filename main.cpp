@@ -53,18 +53,18 @@ public:
     last_error_ = error;
     last_de_dt_ = de_dt;
     
-    PRINT_DEBUG("Vel: %d.%03d Err: %d.%03d P: %d.%03d I: %d.%06d D: %d.%06d",
-      (int)(measurement),
-      abs((int)(measurement*1000)%1000),
-      (int)(error),
-      abs((int)(error*1000)%1000),
-      (int)(k_p_*error),
-      abs((int)(k_p_*error*1000)%1000),
-      (int)(k_i_*integrated_error_),
-      abs((int)(k_i_*integrated_error_*1000000)%1000000),
-      (int)(k_d_*de_dt),
-      abs((int)(k_d_*de_dt*1000000)%1000000)
-    );
+    // PRINT_DEBUG("Vel: %d.%03d Err: %d.%03d P: %d.%03d I: %d.%06d D: %d.%06d",
+    //   (int)(measurement),
+    //   abs((int)(measurement*1000)%1000),
+    //   (int)(error),
+    //   abs((int)(error*1000)%1000),
+    //   (int)(k_p_*error),
+    //   abs((int)(k_p_*error*1000)%1000),
+    //   (int)(k_i_*integrated_error_),
+    //   abs((int)(k_i_*integrated_error_*1000000)%1000000),
+    //   (int)(k_d_*de_dt),
+    //   abs((int)(k_d_*de_dt*1000000)%1000000)
+    // );
 
     //PRINT_DEBUG("Error: %d", (int)(error*1000));
 //    PRINT_DEBUG("Output: %d", (int)(output*1000));
@@ -175,7 +175,7 @@ int8_t orState = 0;    //Rotot offset at motor state 0
 
 inline void CHA_rise_isr() {
     tick += INC[CHB.read()];
-    PRINT_DEBUG("Tick: %d", tick);
+    // PRINT_DEBUG("Tick: %d", tick);
 }
 
     // Maybe faster?
@@ -291,7 +291,7 @@ void spin(){
 
     //Initialise the serial port
     int8_t intState = 0;
-    int8_t intStateOld = -1;
+    int8_t intStateOld = 0;
     while(1){
         intState = readRotorState();
         if (intState != intStateOld) {
@@ -306,17 +306,17 @@ void velocity_thread(){
     int tick_before, tick_after;
     float result;
     while(1){
-        // if (velocity < 10 && velocity > -10){
+        if (velocity < 10 && velocity > -10){
           tick_before = tick;
           Thread::wait(VEL_PERIOD);
           tick_after = tick;
           velocity = 1000.0/(VEL_PERIOD)*(tick_after-tick_before)/117.0;
-        // }
-        // else {
-        //   result = 1000000.0/(float)t_diff;
-        //   velocity = result;
-        //   Thread::wait(VEL_PERIOD);
-        // }
+        }
+        else {
+          result = 1000000.0/(float)t_diff;
+          velocity = result;
+          Thread::wait(VEL_PERIOD);
+        }
 
     }
 
@@ -324,10 +324,9 @@ void velocity_thread(){
 
 
 void velocity_control_thread(){
-    float vel_copy;
     while(1){
         pwm_duty_cycle = vel_controller.computeOutput(ref_vel, velocity, VEL_PERIOD*1000);
-//        PRINT_DEBUG("Duty: 0.%03d",(int)(pwm_duty_cycle*1000))
+        PRINT_DEBUG("Duty: 0.%03d",(int)(pwm_duty_cycle*1000))
         Thread::wait(VEL_PERIOD);
     }
 }
@@ -378,29 +377,17 @@ int main() {
     //   vel_controller.setParams(KP_VELOCITY_SLOW, KI_VELOCITY_SLOW, KD_VELOCITY_SLOW, 1.0);
     // }
 
-    // thread_spin.start(spin);
+    thread_spin.start(spin);
     // thread_vel_control.start(velocity_control_thread);
 
 
     while (1){
         // set_pwm(239);
-        PRINT_DEBUG("Tick: %d", tick);
-
-        // PRINT_DEBUG("Vel:%d.%03d",(int)(velocity),abs((int)(velocity*1000)%1000));
+        // PRINT_DEBUG("Tick: %d", tick);
+        // Thread::wait(100);
+        PRINT_DEBUG("Vel:%d.%03d",(int)(velocity),abs((int)(velocity*1000)%1000));
         // PRINT_DEBUG("Ticks: %d",tick);
         // PRINT_DEBUG("Rots: %d",rots)
         Thread::wait(100);
-        // set_pwm(213);
-        // PRINT_DEBUG("Vel from Tick: %d.%03d",velocity/1000,abs(velocity%1000));
-        // PRINT_DEBUG("Ticks: %d",tick)
-        // Thread::wait(1000);
-        // set_pwm(190);
-        // PRINT_DEBUG("Vel from Tick: %d.%03d",velocity/1000,abs(velocity%1000));
-        // PRINT_DEBUG("Ticks: %d",tick)
-        // Thread::wait(1000);
-        // set_pwm(179);
-        // PRINT_DEBUG("Vel from Tick: %d.%03d",velocity/1000,abs(velocity%1000));
-        // PRINT_DEBUG("Ticks: %d",tick)
-        // Thread::wait(1000);
     }
 }
