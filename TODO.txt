@@ -1,11 +1,28 @@
 NIKOLAY:
+
+
+
     - figure out what is the model for speed/position vs PWM - google
+
 
     - rotations - how do you model your controller
 
     - velocity measure
     - position measure
 
+    - when do you reset controller
+
+
+
+    - position controller - revolutions
+    - combining the output from position and velocity controllers - which one to choose
+
+    - plot PID terms
+    - tune controller extremely precisely
+
+
+
+    - melody repeated
 
 BEN:
     - parse instructions
