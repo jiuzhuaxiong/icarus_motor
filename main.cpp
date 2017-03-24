@@ -10,9 +10,9 @@ class PidController {
 
 public:
   
-  PidController(float k_p, float k_i, float k_d, float max_out /*=0*/) :
-    k_p_(k_p), k_i_(k_i), k_d_(k_d), max_out_(max_out), last_error_(0), last_de_dt_(0),
-    integrated_error_(0) 
+  PidController(float k_p, float k_i, float k_d, float max_out=1.0) :
+    k_p_(k_p), k_i_(k_i), k_d_(k_d), max_out_(max_out), min_out_(0.0), 
+    last_error_(0.0), last_de_dt_(0.0), integrated_error_(0.0) 
   {
   }
 
@@ -39,10 +39,10 @@ public:
       // clamp -- and DO NOT INTEGRATE ERROR (anti- reset windup)
       output = max_out_; 
     }
-    else if (output < 0) 
+    else if (output < min_out_) 
     {
       // clamp -- and DO NOT INTEGRATE ERROR (anti- reset windup)
-      output = 0; 
+      output = min_out_; 
     } 
     else if (error < 0.2*measurement && error > -0.2*measurement)
     {
@@ -53,19 +53,6 @@ public:
     last_error_ = error;
     last_de_dt_ = de_dt;
     
-    // PRINT_DEBUG("Vel: %d.%03d Err: %d.%03d P: %d.%03d I: %d.%09d D: %d.%09d",
-    //   (int)(measurement),
-    //   abs((int)(measurement*1000)%1000),
-    //   (int)(error),
-    //   abs((int)(error*1000)%1000),
-    //   (int)(k_p_*error),
-    //   abs((int)(k_p_*error*1000)%1000),
-    //   (int)(k_i_*integrated_error_),
-    //   abs((int)(k_i_*integrated_error_*1000000000)%1000000000),
-    //   (int)(k_d_*de_dt),
-    //   abs((int)(k_d_*de_dt*1000000000)%1000000000)
-    // );
-
     PRINT_DEBUG("Vel: %d.%03d Err: %de-9 P: %de-9 I: %de-9 D: %de-9",
       (int)(measurement),
       abs((int)(measurement*1000)%1000),
@@ -75,8 +62,8 @@ public:
       (int)(k_d_*de_dt*1000000000)
     );
 
-    //PRINT_DEBUG("Error: %d", (int)(error*1000));
-//    PRINT_DEBUG("Output: %d", (int)(output*1000));
+    // PRINT_DEBUG("Error: %d", (int)(error*1000));
+    // PRINT_DEBUG("Output: %d", (int)(output*1000));
     
     return output;
   }
@@ -89,16 +76,14 @@ public:
     max_out_ = max_out;
   }
 
-  // void timeDifference(float time_end);
-
-
-private:
-
   inline void reset(){
     last_error_ = 0.0; 
     last_de_dt_ = 0.0; 
     integrated_error_ = 0.0; 
   }
+
+
+private:
 
   float last_error_; 
   float last_de_dt_; 
@@ -108,7 +93,6 @@ private:
   float k_i_; 
   float k_d_; 
 
-  // If 0.0, then it is considered unlimited
   float max_out_;
   float min_out_;
 
@@ -134,6 +118,8 @@ const int INC[2] = {-1, 1};
 
 const int VEL_PERIOD = 30;     // in milliseconds
 
+
+// CONTROLLER PARAMETERS
 const float KP_VELOCITY_FAST = 0.021;
 const float KI_VELOCITY_FAST = 0.000000005;
 const float KD_VELOCITY_FAST = 0.000144;
@@ -143,6 +129,7 @@ const float KP_VELOCITY_SLOW = 0.015;;
 const float KI_VELOCITY_SLOW = 0.000000002;
 const float KD_VELOCITY_SLOW = 0.000024;
 
+// NOTES DATA
 const uint8_t notes[7] = {142, 127, 239, 213, 190, 179, 159}; // A B C D E F G
 const uint8_t sharps[7] = {134, 127, 225, 201, 179, 169, 150}; // A# B C# D# F F# G#
 const uint8_t flats[7] = {150, 134, 245, 225, 201, 190, 190}; //A^ B^ C^ D^ E^ E G^
@@ -182,7 +169,6 @@ Timer t;
 Thread thread_v(osPriorityNormal, 500);
 Thread thread_spin(osPriorityNormal, 500);
 Thread thread_vel_control;
-//Thread thread_parser(osPriorityNormal, 500);
 Thread thread_parser(osPriorityNormal, 700);
 // int pwm_on = 0.5;
 
