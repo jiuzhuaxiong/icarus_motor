@@ -39,12 +39,12 @@ public:
       // clamp -- and DO NOT INTEGRATE ERROR (anti- reset windup)
       output = max_out_; 
     }
-    else if (output < -max_out_) 
+    else if (output < 0) 
     {
       // clamp -- and DO NOT INTEGRATE ERROR (anti- reset windup)
-      output = -max_out_; 
+      output = 0; 
     } 
-    else if (error < 0.2*measurement && error > -0.2*measurement)
+    else if (error < 0.2*measurement)
     {
       integrated_error_ += error * dt; 
     }
@@ -53,7 +53,18 @@ public:
     last_error_ = error;
     last_de_dt_ = de_dt;
     
-    PRINT_DEBUG("P:%d, I:%d, D:%d",(int)(k_p_*error*1000000),(int)(k_i_*integrated_error_*1000000),(int)(k_d_*de_dt*1000000));
+    // PRINT_DEBUG("Vel: %d.%03d Err: %d.%03d P: %d.%03d I: %d.%06d D: %d.%06d",
+    //   (int)(measurement),
+    //   abs((int)(measurement*1000)%1000),
+    //   (int)(error),
+    //   abs((int)(error*1000)%1000),
+    //   (int)(k_p_*error),
+    //   abs((int)(k_p_*error*1000)%1000),
+    //   (int)(k_i_*integrated_error_),
+    //   abs((int)(k_i_*integrated_error_*1000000)%1000000),
+    //   (int)(k_d_*de_dt),
+    //   abs((int)(k_d_*de_dt*1000000)%1000000)
+    // );
 
     //PRINT_DEBUG("Error: %d", (int)(error*1000));
 //    PRINT_DEBUG("Output: %d", (int)(output*1000));
@@ -145,7 +156,6 @@ volatile float ref_vel;
 
 volatile int rots;
 
-volatile bool using_i1_velocity = false;
 
 Timer t;
 
@@ -165,6 +175,7 @@ int8_t orState = 0;    //Rotot offset at motor state 0
 
 inline void CHA_rise_isr() {
     tick += INC[CHB.read()];
+    // PRINT_DEBUG("Tick: %d", tick);
 }
 
     // Maybe faster?
@@ -181,10 +192,6 @@ inline void I1_rise_isr(){
         rots++;
         t_diff = t_now-t_before;
         t_before = t_now;
-
-        if(using_i1_velocity){
-            tick = rots*117;  
-        }
     }
 }
 
@@ -231,24 +238,40 @@ inline int8_t readRotorState(){
 //Basic synchronisation routine    
 int8_t motorHome() {
     //Put the motor in drive state 0 and wait for it to stabilise
+    PRINT_DEBUG("motor home");
 
     L2H.write(1);
+    PRINT_DEBUG("L2H Off");
     L3H.write(1);
+    PRINT_DEBUG("L3H Off");
     L1L.write(0);
+    PRINT_DEBUG("L1L Off");
     L2L.write(0);
+    PRINT_DEBUG("L2L Off");
+
 
     L1H.write(0);
+    PRINT_DEBUG("L1H On");
     L3L.write(1);
+    PRINT_DEBUG("L3L On");
+
+
+    PRINT_DEBUG("Rotate to home state");
 
     bool stable = false;
     int prev_state, curr_state;
 
+    PRINT_DEBUG("Reading rotor state");
     prev_state = readRotorState();
+    PRINT_DEBUG("Read rotor state");
 
     while(!stable){
+        PRINT_DEBUG("Waiting to stabilise");
         wait(1.0);
         curr_state = readRotorState();
         stable = (velocity == 0) && (curr_state == prev_state);
+        // stable = (curr_state == 0) && (curr_state == prev_state);
+
         prev_state = curr_state;
     }
 
@@ -268,7 +291,7 @@ void spin(){
 
     //Initialise the serial port
     int8_t intState = 0;
-    int8_t intStateOld = -1;
+    int8_t intStateOld = 0;
     while(1){
         intState = readRotorState();
         if (intState != intStateOld) {
@@ -284,14 +307,12 @@ void velocity_thread(){
     float result;
     while(1){
         if (velocity < 10 && velocity > -10){
-          using_i1_velocity = false;
           tick_before = tick;
           Thread::wait(VEL_PERIOD);
           tick_after = tick;
           velocity = 1000.0/(VEL_PERIOD)*(tick_after-tick_before)/117.0;
         }
         else {
-          using_i1_velocity = true;
           result = 1000000.0/(float)t_diff;
           velocity = result;
           Thread::wait(VEL_PERIOD);
@@ -303,11 +324,9 @@ void velocity_thread(){
 
 
 void velocity_control_thread(){
-    float vel_copy;
     while(1){
         pwm_duty_cycle = vel_controller.computeOutput(ref_vel, velocity, VEL_PERIOD*1000);
-//        PRINT_DEBUG("Duty: 0.%03d",(int)(pwm_duty_cycle*1000))
-        // PRINT_DEBUG("%d.%03d",((int)velocity),abs((int)(velocity*1000)%1000));
+        PRINT_DEBUG("Duty: 0.%03d",(int)(pwm_duty_cycle*1000))
         Thread::wait(VEL_PERIOD);
     }
 }
@@ -330,47 +349,45 @@ int main() {
 
     pc.printf("Hello\n\r");
 
+    PRINT_DEBUG("Setting PWM");
     set_pwm(pwm_period);
 
     //orState is subtracted from future rotor state inputs to align rotor and motor states
     
+
+    PRINT_DEBUG("Starting velocity thread");
+
     thread_v.start(velocity_thread);
 
+
+    PRINT_DEBUG("Synchronising state");
     orState = motorHome();
 
+
+    PRINT_DEBUG("Starting timer");
     // // Begin threads
     t.start();
 
     ref_vel = 16.0;
 
-    if(ref_vel < 10.0){
-      vel_controller.setParams(KP_VELOCITY_FAST, KI_VELOCITY_FAST, KD_VELOCITY_FAST, 1.0);
-    }
-    else {
-      vel_controller.setParams(KP_VELOCITY_SLOW, KI_VELOCITY_SLOW, KD_VELOCITY_SLOW, 1.0);
-    }
+    // if(ref_vel < 10.0){
+    //   vel_controller.setParams(KP_VELOCITY_FAST, KI_VELOCITY_FAST, KD_VELOCITY_FAST, 1.0);
+    // }
+    // else {
+    //   vel_controller.setParams(KP_VELOCITY_SLOW, KI_VELOCITY_SLOW, KD_VELOCITY_SLOW, 1.0);
+    // }
 
     thread_spin.start(spin);
-    thread_vel_control.start(velocity_control_thread);
+    // thread_vel_control.start(velocity_control_thread);
 
 
     while (1){
         // set_pwm(239);
-
-        // PRINT_DEBUG("Ticks: %d",tick)
+        // PRINT_DEBUG("Tick: %d", tick);
+        // Thread::wait(100);
+        PRINT_DEBUG("Vel:%d.%03d",(int)(velocity),abs((int)(velocity*1000)%1000));
+        // PRINT_DEBUG("Ticks: %d",tick);
         // PRINT_DEBUG("Rots: %d",rots)
         Thread::wait(100);
-        // set_pwm(213);
-        // PRINT_DEBUG("Vel from Tick: %d.%03d",velocity/1000,abs(velocity%1000));
-        // PRINT_DEBUG("Ticks: %d",tick)
-        // Thread::wait(1000);
-        // set_pwm(190);
-        // PRINT_DEBUG("Vel from Tick: %d.%03d",velocity/1000,abs(velocity%1000));
-        // PRINT_DEBUG("Ticks: %d",tick)
-        // Thread::wait(1000);
-        // set_pwm(179);
-        // PRINT_DEBUG("Vel from Tick: %d.%03d",velocity/1000,abs(velocity%1000));
-        // PRINT_DEBUG("Ticks: %d",tick)
-        // Thread::wait(1000);
     }
 }
