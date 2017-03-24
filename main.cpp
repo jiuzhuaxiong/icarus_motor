@@ -274,19 +274,19 @@ void motorOut(int8_t driveState){
     if (~driveOut & 0x08) L2H.write(1);
     if (~driveOut & 0x20) L3H.write(1);
 
-   if (~driveOut & 0x01) L1L.write(0);
-   if (~driveOut & 0x04) L2L.write(0);
-   if (~driveOut & 0x10) L3L.write(0);
+    if (~driveOut & 0x01) L1L.write(0);
+    if (~driveOut & 0x04) L2L.write(0);
+    if (~driveOut & 0x10) L3L.write(0);
 
     //Then turn on gnd
-   if (driveOut & 0x01) L1L.write(1);
-   if (driveOut & 0x02) L1H.write(1-pwm_duty_cycle);
+    if (driveOut & 0x01) L1L.write(1);
+    if (driveOut & 0x02) L1H.write(1-pwm_duty_cycle);
 
-   if (driveOut & 0x04) L2L.write(1);
-   if (driveOut & 0x08) L2H.write(1-pwm_duty_cycle);
+    if (driveOut & 0x04) L2L.write(1);
+    if (driveOut & 0x08) L2H.write(1-pwm_duty_cycle);
 
-   if (driveOut & 0x10) L3L.write(1);
-   if (driveOut & 0x20) L3H.write(1-pwm_duty_cycle);
+    if (driveOut & 0x10) L3L.write(1);
+    if (driveOut & 0x20) L3H.write(1-pwm_duty_cycle);
 
     // and turn on Vm
 }
@@ -437,6 +437,9 @@ void terminateControlThreads(){
     thread_spin.terminate();
     thread_vel_control.terminate();
 
+    thread_v.terminate();
+    thread_r.terminate();
+
     // Reset the controllers for the next run
     vel_controller.reset();
     // pos_controller.reset();
@@ -470,6 +473,7 @@ void controlOutput(){
                 else        lead = 2;
 
                 // Start velocity control thread
+                thread_v.start(velocity_thread);
                 thread_vel_control.start(velocity_control_thread);
             }
 
@@ -477,6 +481,8 @@ void controlOutput(){
                 PRINT_DEBUG("Position control not working yet");
                 // if(R < VEL_THRESH)  pos_controller.setParams(KP_VELOCITY_FAST, KI_VELOCITY_FAST, KD_VELOCITY_FAST);
                 // else                pos_controller.setParams(KP_VELOCITY_SLOW, KI_VELOCITY_SLOW, KD_VELOCITY_SLOW);
+                
+                thread_r.start(rotations_thread);
             }
 
             // Start the thread that spins the motor
@@ -597,7 +603,6 @@ void parse_input_thread(){
         while (!command){
             if (pc.readable()){
                 input[in_idx] = pc.getc();
-                // if (input[in_idx] == '\0') command = true;
                 if (input[in_idx] == '\r' || input[in_idx] == '\n'){
                     command = true;
                     in_idx = 0;

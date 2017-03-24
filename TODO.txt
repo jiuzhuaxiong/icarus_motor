@@ -1,5 +1,36 @@
 
+FIXED PID POSITION:
+    - might be better to control lead instead of pwm - depending on whether it stops down
+
+
+FIXES PID:
+    - to average velocity use all photosensors and average speed between 3 of them
+
+
+MAIN BEHAVIOUR:
+    - rotate home after completing a task (if needed)
+
+    - fix the memory requirements - reduce as much as possible
+
+    - how do you detect that position control has finished
+
+    - mutices in threads - you probably need them
+
+
+    - measure speed using average of all 3 sensors
+
+    - controller - try adding the output to the current duty instead of setting the duty to 1-output
+
+
+
+
+
 REPORT:
+    - velocity measurement filtering
+    - derivative filtering
+    - frequency of measuring velocity - no need to be higher than frequency of controller - even bad if it is higher
+    - different ways of measuring position based on speed
+
     - figure out what is the model for speed/position vs PWM - google
 
     - rotations - how do you model your controller
@@ -8,35 +39,8 @@ REPORT:
     - combining the output from position and velocity controllers - which one to choose (bing says choose the one that gives smaller output)
 
 
-
-WHAT IS THE EXPECTED BEHAVIOUR:
-
-    - what does he mean by accuracy of 0.01 - does it mean no osciallation higher than 0.01 or the average should not deviate more than 0.01 of the target
-    - what is the expected behaviour for rotation - it is rotations from the point we start, right
-    - is filtering measurements correct thing to do 
-
-
-FIXES TO DO PID:
-    - to average velocity use all photosensors and average speed between 3 of them
-
-
-MAIN BEHAVIOUR:
-    - uncomment other threads - make sure you satisfy mem requirements
-
-
-    - rotate home after completing a task (if needed)
-    - preempt stuff if you receive input before finished execution
-
-    - how do you detect that position control has finished
-
-
-    - mutices in threads - you probably need them
-
-
-REPORT:
-    - velocity measurement filtering
-    - derivative filtering
-    - frequency of measuring velocity - no need to be higher than frequency of controller - even bad if it is higher
+AUTOTUNE:
+    - check the behaviour of step input; do step input by changing pwm rapidly from 0 to 1
 
 
 
