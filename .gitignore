@@ -3,3 +3,6 @@ BUILD/*
 mbed-os/.DS_Store
 install.sh
 starter_code
+parse.exe.stackdump
+parse.exe
+*.exe
