@@ -28,7 +28,7 @@ public:
     float de_dt = (error - last_error_ ) / dt;
 
     // Do smoothing (numeric derivatives are noisy):
-    // de_dt = 0.5 * last_de_dt_ + 0.5 * de_dt;
+    de_dt = 0.7 * last_de_dt_ + 0.3 * de_dt;
 
     // compute output:
     float output = k_p_ * error + k_i_ * integrated_error_ + k_d_ * de_dt;
@@ -110,7 +110,7 @@ private:
 
   // If 0.0, then it is considered unlimited
   float max_out_;
-  float min_out_ = 0.0;
+  float min_out_;
 
   // float time_start_;
   // float time_end_;
@@ -158,7 +158,7 @@ volatile int t_now = 0;
 volatile int t_diff = 10000000000; // revolutions/sec is 1/t_diff
 volatile int t_diff_temp=0;
 
-volatile float pwm_duty_cycle = 0.5;
+volatile float pwm_duty_cycle = 1;
 volatile int pwm_period = 400; // in microseconds
 
 volatile float ref_vel;
@@ -178,7 +178,7 @@ Thread thread_parser(osPriorityNormal, 500);
 // int pwm_on = 0.5;
 
 // PidController vel_controller(0.01, 0.00000001, 0.1, 1.0);
-PidController vel_controller(0.013, 0.03, 0.000742, 1.0); //PID values from ZiglerNicholas [0.021, 0.07636363636363636, 0.0014437500000000002]
+PidController vel_controller(0.013, 0.01, 0.000742, 1.0); //PID values from ZiglerNicholas [0.021, 0.07636363636363636, 0.0014437500000000002]
 //PidController pos_controller(100.0, 0.0, 0.0 0.0 1.0);
 // PidController vel_controller(0.018, 0.109, 0.000742, 1.0); //PID values from ZiglerNicholas [0.021, 0.07636363636363636, 0.0014437500000000002]
 
@@ -197,7 +197,7 @@ inline void CHA_rise_isr() {
     // tick += (1>>val);
     // tick -= (1>>!val);
 
-inline void I1_rise_isr(){
+inline void I1_isr(){
     t_now = t.read_us();
     t_diff_temp = t_now-t_before;
     if(t_diff_temp > 10000){ // Ignore if the duration is too small (implying glitch)
@@ -313,18 +313,22 @@ void spin(){
 
 
 void velocity_thread(){
+    float curr_velocity = 0;
     int tick_before, tick_after;
     float result;
     while(1){
         if (velocity < 10 && velocity > -10){
-          tick_before = tick;
-          Thread::wait(VEL_PERIOD);
-          tick_after = tick;
-          velocity = 1000.0/(VEL_PERIOD)*(tick_after-tick_before)/117.0;
+            tick_before = tick;
+            Thread::wait(VEL_PERIOD);
+            tick_after = tick;
+            curr_velocity = 1000.0/(VEL_PERIOD)*(tick_after-tick_before)/117.0;
+            velocity = 0.2*curr_velocity +0.8*velocity;
+
         }
         else {
-          velocity = 1000000.0/(float)t_diff;
-          Thread::wait(VEL_PERIOD);
+            curr_velocity = 1000000.0/(float)t_diff; // 1 revolutions * 10^6 pecoseconds
+            velocity = 0.2*curr_velocity +0.8*velocity;
+            Thread::wait(VEL_PERIOD);
         }
 
     }
@@ -342,16 +346,15 @@ void velocity_control_thread(){
 
 // ======================================== PARSER ========================================
 
-void parse_input_thread(){
-    float r, v;
-    bool cmd, r_cmd, v_cmd;
-    cmd = parseNote(input, n, d, s);
-    cmd = parseCmd(input, r, v, r_cmd, v_cmd);
+// void parse_input_thread(){
+//     float r, v;
+//     bool cmd, r_cmd, v_cmd;
+//     cmd = parseNote(input, n, d, s);
+//     cmd = parseCmd(input, r, v, r_cmd, v_cmd);
+// }
 
-}
 
-
-bool parseCmd(char* in, float& r, float& v, bool& r_cmd, bool& v_cmd,){
+bool parseCmd(char* in, float& r, float& v, bool& r_cmd, bool& v_cmd){
 
     char buf_r[7] = {0};
     char buf_v[7] = {0};
@@ -475,7 +478,8 @@ int main() {
     // =============================
 
     CHA.rise(&CHA_rise_isr);
-    I1.rise(&I1_rise_isr);
+    I1.rise(&I1_isr);
+
 
     // =============================
     // Original MAIN
@@ -519,7 +523,7 @@ int main() {
         // set_pwm(239);
         // PRINT_DEBUG("Tick: %d", tick);
         // Thread::wait(100);
-        // PRINT_DEBUG("Vel:%d.%03d",(int)(velocity),abs((int)(velocity*1000)%1000));
+         // PRINT_DEBUG("Vel:%d.%03d",(int)(velocity),abs((int)(velocity*1000)%1000));
         // PRINT_DEBUG("Ticks: %d",tick);
         // PRINT_DEBUG("Rots: %d",rots)
         Thread::wait(100);
