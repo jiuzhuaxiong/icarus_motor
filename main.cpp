@@ -162,7 +162,9 @@ volatile float ref_vel;
 
 volatile int rots = 0;
 volatile int tick_offset = 0;
+volatile int tick_adjust = 0;
 volatile float rotations = 0;
+Mutex tick_adjust_mutex;
 
 volatile float R = 0;
 volatile float V = 0;  // Command line arguments
@@ -173,6 +175,8 @@ volatile int8_t melody_size=0; // Size of N and D
 
 Timer t;
 
+Thread thread_diff(osPriorityNormal, 300);
+Thread thread_r(osPriorityNormal, 500);
 Thread thread_v(osPriorityNormal, 500);
 Thread thread_spin(osPriorityNormal, 500);
 Thread thread_vel_control;
@@ -212,16 +216,21 @@ inline void I1_isr_rise(){
 
         if(!tick_offset){
             tick_offset=(tick%117+117)%117;
+            rots++;
         }
-
         t_now_rise = t.read_us();
         t_diff_temp = t_now_rise-t_before_rise;
+
         if(t_diff_temp > 10000){ // Ignore if the duration is too small (implying glitch)
-          t_diff = -t_diff_temp;
-          t_before_rise = t_now_rise;
-          rots--;
+            t_diff = -t_diff_temp;
+            t_before_rise = t_now_rise;
+            rots--;
+            if (velocity > VEL_THRESH && velocity < -VEL_THRESH){
+                tick_adjust_mutex.lock();
+                tick_adjust = (rots*117)+tick_offset;
+                tick_adjust_mutex.unlock();
+            }
         }
-        
     }
 }
 
@@ -238,6 +247,11 @@ inline void I1_isr_fall(){
           t_diff = t_diff_temp;
           t_before_fall = t_now_fall;
           rots++;
+            if (velocity > VEL_THRESH && velocity < -VEL_THRESH){
+                tick_adjust_mutex.lock();
+                tick_adjust = ((rots-1)*117)+tick_offset;
+                tick_adjust_mutex.unlock();
+            }
         }   
 
     }
@@ -351,24 +365,40 @@ void spin(){
     }
 }
 
+volatile int tick_diff;
+
+void tick_diff_thread(){
+    int tick_before;
+    while(1){
+        tick_before = tick;
+        Thread::wait(VEL_PERIOD);
+        tick_diff = tick-tick_before;
+    }
+}
+
+void rotations_thread(){
+    while(1){
+        if(tick_adjust_mutex.trylock()){
+            tick_adjust += tick_diff;
+        }
+        rotations = (float)tick_adjust/117.0;
+        Thread::wait(VEL_PERIOD);
+    }
+}
+
 
 void velocity_thread(){
     float curr_velocity = 0;
-    int tick_before, tick_after;
     while(1){
         if (velocity < VEL_THRESH && velocity > -VEL_THRESH){
-            tick_before = tick;
-            Thread::wait(VEL_PERIOD);
-            tick_after = tick;
-            curr_velocity = 1000.0/(VEL_PERIOD)*(tick_after-tick_before)/117.0;
+            curr_velocity = 1000.0/(VEL_PERIOD)*(tick_diff)/117.0;
             velocity = 0.2*curr_velocity +0.8*velocity;
-
         }
         else {
             curr_velocity = 1000000.0/(float)t_diff; // 1 revolutions * 10^6 pecoseconds
             velocity = 0.2*curr_velocity +0.8*velocity;
-            Thread::wait(VEL_PERIOD);
         }
+        Thread::wait(VEL_PERIOD);
 
     }
 
@@ -619,8 +649,9 @@ int main() {
 
     PRINT_DEBUG("Starting velocity thread");
 
-    thread_v.start(velocity_thread);
-
+    thread_diff.start(tick_diff_thread);
+    // thread_v.start(velocity_thread);
+    thread_r.start(rotations_thread);
 
     PRINT_DEBUG("Synchronising state");
     orState = motorHome();
@@ -641,14 +672,15 @@ int main() {
     // thread_vel_control.start(velocity_control_thread);
 
     while (1){
-        parse_input_thread();
+        // parse_input_thread();
 
-        // set_pwm(239);
-        PRINT_DEBUG("Tick: %d", tick);
-        // Thread::wait(100);
-        // PRINT_DEBUG("Vel:%d.%03d",(int)(velocity),abs((int)(velocity*1000)%1000));
-        // PRINT_DEBUG("Ticks: %d",tick);
-        PRINT_DEBUG("Rots: %d",rots)
+        // // set_pwm(239);
+        // PRINT_DEBUG("Tick: %d", tick);
+        // // Thread::wait(100);
+        // // PRINT_DEBUG("Vel:%d.%03d",(int)(velocity),abs((int)(velocity*1000)%1000));
+        // // PRINT_DEBUG("Ticks: %d",tick);
+        // PRINT_DEBUG("Rots: %d",rots)
+        PRINT_DEBUG("%d.%d",(int)rotations,(int)(rotations*100)%100);
         Thread::wait(100);
     }
 }
