@@ -1,14 +1,21 @@
 import matplotlib.pyplot as plt
 
-main():
+REF = 17
+
+def main():
     out = []
     f = open("plots/vel.log")
     
     for r in f:
-        val = float(r)
-        out.append(val)        
+        try:
+            val = float(r)
+            out.append(val)
+        except ValueError:
+            pass
 
     ref = [REF]*len(out)
+
+    print len(out)
 
     plt.plot(out, label="output")
     plt.plot(ref, label="reference")
