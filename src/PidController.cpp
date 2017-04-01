@@ -43,7 +43,9 @@ float PidController::computeOutput(float reference, float measurement, float dt)
   last_error_ = error;
   last_de_dt_ = de_dt;
   
-  PRINT_DEBUG("Vel: %d.%03d Err: %de-9 P: %de-9 I: %de-9 D: %de-9",
+  PRINT_DEBUG("Ref: %d.%03d, Vel: %d.%03d Err: %de-9 P: %de-9 I: %de-9 D: %de-9",
+    (int)(reference),
+    abs((int)(reference*1000)%1000),
     (int)(measurement),
     abs((int)(measurement*1000)%1000),
     (int)(error*1000000000),

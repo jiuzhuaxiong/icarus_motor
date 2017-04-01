@@ -195,7 +195,7 @@ void rotations_thread(){
 }
 
 
-void velocity_thread(){
+void velocity_measure_thread(){
     float curr_velocity = 0;
     while(1){
         // If getting within 35 ticks/VEL_PERIOD, use ticks for velocity
@@ -238,16 +238,16 @@ void play_music_thread(){
 
 
 void terminateControlThreads(){
-    // // Stop the velocity control threads
-    // thread_spin.terminate();
-    // thread_vel_control.terminate();
+    // Stop the velocity control threads
+    thread_spin.terminate();
+    thread_vel_control.terminate();
 
-    // thread_v.terminate();
-    // thread_r.terminate();
+    thread_v.terminate();
+    thread_r.terminate();
 
-    // // Reset the controllers for the next run
-    // vel_controller.reset();
-    // // pos_controller.reset();
+    // Reset the controllers for the next run
+    vel_controller.reset();
+    // pos_controller.reset();
 }
 
 
@@ -270,15 +270,15 @@ void controlOutput(){
             // Update controller parameters
             if (v_cmd) {
                 if(V > -VEL_THRESH && V < VEL_THRESH)  
-                    vel_controller.setParams(KP_VELOCITY_FAST, KI_VELOCITY_FAST, KD_VELOCITY_FAST);
-                else                                    
                     vel_controller.setParams(KP_VELOCITY_SLOW, KI_VELOCITY_SLOW, KD_VELOCITY_SLOW);
+                else                                    
+                    vel_controller.setParams(KP_VELOCITY_FAST, KI_VELOCITY_FAST, KD_VELOCITY_FAST);
 
                 if (V < 0)  lead = -2;
                 else        lead = 2;
 
                 // Start velocity control thread
-                thread_v.start(velocity_thread);
+                thread_v.start(velocity_measure_thread);
                 thread_vel_control.start(velocity_control_thread);
             }
 
@@ -320,6 +320,8 @@ void parseInput(){
                 } 
                 else ++in_idx;
             }
+            PRINT_DEBUG("%d.%03d",(int)velocity,(int)(velocity*1000)%1000);
+            
             Thread::wait(100);
         }
 
@@ -384,8 +386,8 @@ int main() {
     I1.rise(&I1_isr_rise);
     I1.fall(&I1_isr_fall);
 
-    thread_diff.start(tick_diff_thread);
-    thread_v.start(velocity_thread); 
+    // thread_diff.start(tick_diff_thread);
+    // thread_v.start(velocity_measure_thread); 
     // thread_r.start(rotations_thread);
 
 
@@ -394,7 +396,7 @@ int main() {
 
     // V = 8.0;
     // thread_vel_control.start(velocity_control_thread);
-    thread_spin.start(spin);
+    // thread_spin.start(spin);
 
     // Run a while loop trying to parse     
     parseInput();

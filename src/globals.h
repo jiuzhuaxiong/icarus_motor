@@ -22,6 +22,7 @@ const int VEL_PERIOD = 30;     // in milliseconds
 
 
 const float VEL_THRESH = 10.0;
+const int8_t TICK_DIFF_THRESH = 35;
 
 // CONTROLLER PARAMETERS
 //PID values from ZiglerNicholas [0.021, 0.07636363636363636, 0.0014437500000000002]
