@@ -88,13 +88,16 @@ void motorOut(int8_t driveState){
 
     //Then turn on gnd
     if (driveOut & 0x01) L1L.write(1);
-    if (driveOut & 0x02) L1H.write(1-pwm_duty_cycle);
+    // if (driveOut & 0x02) L1H.write(1-pwm_duty_cycle);
+    if (driveOut & 0x02) L1H.write(pwm_duty_cycle);
 
     if (driveOut & 0x04) L2L.write(1);
-    if (driveOut & 0x08) L2H.write(1-pwm_duty_cycle);
+    // if (driveOut & 0x08) L2H.write(1-pwm_duty_cycle);
+    if (driveOut & 0x08) L2H.write(pwm_duty_cycle);
 
     if (driveOut & 0x10) L3L.write(1);
-    if (driveOut & 0x20) L3H.write(1-pwm_duty_cycle);
+    // if (driveOut & 0x20) L3H.write(1-pwm_duty_cycle);
+    if (driveOut & 0x20) L3H.write(pwm_duty_cycle);
 
     // and turn on Vm
 }
@@ -227,7 +230,7 @@ void velocity_measure_thread(){
 
 void velocity_control_thread(){
     while(1){
-        pwm_duty_cycle = vel_controller.computeOutput(V, velocity, (float)VEL_PERIOD/1000.0);
+        pwm_duty_cycle = vel_controller.computeOutput(V, velocity, (float)VEL_PERIOD/1000.0, pwm_duty_cycle);
         // PRINT_DEBUG("Duty: 0.%03d",(int)(pwm_duty_cycle*1000))
         Thread::wait(VEL_PERIOD);
     }
@@ -403,8 +406,8 @@ int main() {
 
     orState = motorHome();
 
-    thread_v.start(velocity_measure_thread); 
-    thread_r.start(rotations_thread);
+    // thread_v.start(velocity_measure_thread); 
+    // thread_r.start(rotations_thread);
 
     PRINT_DEBUG("Starting timer");
     t.start();
@@ -414,12 +417,12 @@ int main() {
     thread_spin.start(spin);
 
     // Run a while loop trying to parse     
-    // parseInput();
+    parseInput();
     // ANDREW'S DEBUG SECTION
 
 
     while (1){
-         PRINT_DEBUG("Rot: %d.%03d",(int)rotations,(int)(rotations*1000)%1000);
+         // PRINT_DEBUG("Rot: %d.%03d",(int)rotations,(int)(rotations*1000)%1000);
 //        PRINT_DEBUG("Rots: %d, Ticks: %d",rots,tick);
         // PRINT_DEBUG("Vel: %d.%03d",(int)velocity,(int)(velocity*1000)%1000);
         Thread::wait(100);
