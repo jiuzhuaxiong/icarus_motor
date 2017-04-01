@@ -7,7 +7,6 @@
 #include "PidController.h"
 #include "wiring.h"
 
-
 // ======================================== INTERRUPTS ========================================
 
 
@@ -30,27 +29,6 @@ inline void I1_isr_rise(){
 
         if(!tick_offset){
             tick_offset=(tick%117+117)%117;
-            rots++;
-        }
-        t_now_rise = t.read_us();
-        t_diff_temp = t_now_rise-t_before_rise;
-
-        if(t_diff_temp > 10000){ // Ignore if the duration is too small (implying glitch)
-            t_diff = -t_diff_temp;
-            t_before_rise = t_now_rise;
-            rots--;
-            tick_adjust_mutex.lock();
-            tick_adjust = (rots*117)+tick_offset;
-            tick_adjust_mutex.unlock();
-        }
-    }
-}
-
-inline void I1_isr_fall(){
-    if(I2){
-
-        if(!tick_offset){
-            tick_offset=(tick%117+117)%117;
         }
 
         t_now_fall = t.read_us();
@@ -67,6 +45,28 @@ inline void I1_isr_fall(){
 
     }
 }
+
+inline void I1_isr_fall(){
+    if(I2){
+
+        if(!tick_offset){
+            tick_offset=(tick%117+117)%117;
+            rots++;
+        }
+        t_now_rise = t.read_us();
+        t_diff_temp = t_now_rise-t_before_rise;
+
+        if(t_diff_temp > 10000){ // Ignore if the duration is too small (implying glitch)
+            t_diff = -t_diff_temp;
+            t_before_rise = t_now_rise;
+            rots--;
+            tick_adjust_mutex.lock();
+            tick_adjust = (rots*117)+tick_offset;
+            tick_adjust_mutex.unlock();
+        }
+    }
+}
+
 
 
 // ======================================== FUNCTION DEFINTIONS ========================================
@@ -198,10 +198,12 @@ void rotations_thread(){
 void velocity_thread(){
     float curr_velocity = 0;
     while(1){
-        if (velocity < VEL_THRESH && velocity > -VEL_THRESH){
+        // If getting within 35 ticks/VEL_PERIOD, use ticks for velocity
+        if (tick_diff < TICK_DIFF_THRESH && tick_diff > -TICK_DIFF_THRESH){ 
             curr_velocity = 1000.0/(VEL_PERIOD)*(tick_diff)/117.0;
             velocity = 0.2*curr_velocity +0.8*velocity;
         }
+        // Else use I1 rotation counter for velocity
         else {
             curr_velocity = 1000000.0/(float)t_diff; // 1 revolutions * 10^6 pecoseconds
             velocity = 0.2*curr_velocity +0.8*velocity;
@@ -383,16 +385,16 @@ int main() {
     I1.fall(&I1_isr_fall);
 
     thread_diff.start(tick_diff_thread);
-    // thread_v.start(velocity_thread); 
-    thread_r.start(rotations_thread);
+    thread_v.start(velocity_thread); 
+    // thread_r.start(rotations_thread);
 
 
     PRINT_DEBUG("Starting timer");
     t.start();
 
-    // ref_vel = 20.0;
-    // thread_spin.start(spin);
+    // V = 8.0;
     // thread_vel_control.start(velocity_control_thread);
+    thread_spin.start(spin);
 
     // Run a while loop trying to parse     
     parseInput();
@@ -400,7 +402,6 @@ int main() {
 
 
     while (1){
-
         // PRINT_DEBUG("%d.%03d",(int)rotations,(int)(rotations*1000)%1000);
         Thread::wait(100);
     }
