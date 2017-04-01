@@ -207,9 +207,7 @@ void velocity_thread(){
             velocity = 0.2*curr_velocity +0.8*velocity;
         }
         Thread::wait(VEL_PERIOD);
-
     }
-
 }
 
 
@@ -238,16 +236,16 @@ void play_music_thread(){
 
 
 void terminateControlThreads(){
-    // Stop the velocity control threads
-    thread_spin.terminate();
-    thread_vel_control.terminate();
+    // // Stop the velocity control threads
+    // thread_spin.terminate();
+    // thread_vel_control.terminate();
 
-    thread_v.terminate();
-    thread_r.terminate();
+    // thread_v.terminate();
+    // thread_r.terminate();
 
-    // Reset the controllers for the next run
-    vel_controller.reset();
-    // pos_controller.reset();
+    // // Reset the controllers for the next run
+    // vel_controller.reset();
+    // // pos_controller.reset();
 }
 
 
@@ -300,8 +298,7 @@ void controlOutput(){
 void parseInput(){
     bool command;
     float r_tmp, v_tmp;
-    uint8_t n[16];
-    uint8_t d[16];
+    uint8_t n[16], d[16];
     int8_t s = 0;
     bool r_updated, v_updated;
 
@@ -319,7 +316,7 @@ void parseInput(){
                     command = true;
                     in_idx = 0;
                 } 
-                else in_idx++;
+                else ++in_idx;
             }
             Thread::wait(100);
         }
@@ -334,13 +331,12 @@ void parseInput(){
             n_cmd = false;
             r_cmd = r_updated;
             v_cmd = v_updated;
-
         }      
         
         // Notes command:    n_cmd=true
         // Rotation command: r_cmd = true
         // Velocity command: v_cmd = true
-        // Autotune command: r_cmd=false, v_cmd=False, n_cmd=false
+        // Autotune command: r_cmd=false, v_cmd=false, n_cmd=false
         // States - n_cmd=true 
 
         terminateControlThreads();        
@@ -350,8 +346,9 @@ void parseInput(){
         V = v_tmp;
         melody_size = s;
 
+        // Print the new command
         if (n_cmd){
-            for(int i=0; i<s; i++){
+            for(int i=0; i<s; ++i){
                 PRINT_DEBUG("Note: %u, Duration: %u", N[i], D[i]);
             }
         }
@@ -404,7 +401,7 @@ int main() {
 
     while (1){
 
-        PRINT_DEBUG("%d.%03d",(int)rotations,(int)(rotations*1000)%1000);
+        // PRINT_DEBUG("%d.%03d",(int)rotations,(int)(rotations*1000)%1000);
         Thread::wait(100);
     }
 
