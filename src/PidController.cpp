@@ -50,17 +50,30 @@ float PidController::computeOutput(float reference, float measurement, float dt,
   last_error_ = error;
   last_de_dt_ = de_dt;
   
-  PRINT_DEBUG("Ref: %d.%03d, Vel: %d.%03d Out: %d.%03d Err: %de-9 P: %de-9 I: %de-9 D: %de-9",
-    (int)(reference),
-    abs((int)(reference*1000)%1000),
+  // PRINT_DEBUG("Ref: %d.%03d, Vel: %d.%03d Out: %d.%03d Err: %de-9 P: %de-9 I: %de-9 D: %de-9",
+  //   (int)(reference),
+  //   abs((int)(reference*1000)%1000),
+  //   (int)(measurement),
+  //   abs((int)(measurement*1000)%1000),
+  //   (int)(pwm_duty),
+  //   abs((int)(pwm_duty*1000)%1000),
+  //   (int)(error*1000000000),
+  //   (int)(k_p_*error*1000000000),
+  //   (int)(k_i_*integrated_error_*1000000000),
+  //   (int)(k_d_*de_dt*1000000000)
+  // );
+
+  PRINT_DEBUG("Vel: %d.%03d Err: %de-9 P: %de-9 I: %de-9 D: %de-9 Ref: %d.%03d Out: %d.%03d",
     (int)(measurement),
     abs((int)(measurement*1000)%1000),
-    (int)(pwm_duty),
-    abs((int)(pwm_duty*1000)%1000),
     (int)(error*1000000000),
     (int)(k_p_*error*1000000000),
     (int)(k_i_*integrated_error_*1000000000),
-    (int)(k_d_*de_dt*1000000000)
+    (int)(k_d_*de_dt*1000000000),
+    (int)(reference),
+    abs((int)(reference*1000)%1000),
+    (int)(pwm_duty),
+    abs((int)(pwm_duty*1000)%1000)
   );
 
   // PRINT_DEBUG("Error: %d", (int)(error*1000));

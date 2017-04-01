@@ -26,9 +26,12 @@ const int8_t TICK_DIFF_THRESH = 35;
 
 // CONTROLLER PARAMETERS
 //PID values from ZiglerNicholas [0.021, 0.07636363636363636, 0.0014437500000000002]
-const float KP_VELOCITY_FAST = 0.013;
-const float KI_VELOCITY_FAST = 0.01;
-const float KD_VELOCITY_FAST = 0.000742;
+// const float KP_VELOCITY_FAST = 0.013;
+// const float KI_VELOCITY_FAST = 0.01;
+// const float KD_VELOCITY_FAST = 0.000742;
+const float KP_VELOCITY_FAST = 0.02;
+const float KI_VELOCITY_FAST = 0.0;
+const float KD_VELOCITY_FAST = 0.0;
 
 const float KP_VELOCITY_SLOW = 0.015;;
 const float KI_VELOCITY_SLOW = 0.000000002;

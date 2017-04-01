@@ -3,9 +3,11 @@ import matplotlib.pyplot as plt
 
 def main():
     out = []
+    # f = open("vel.log")
     f = open("plots/vel.log")
     
     measurement = []
+    reference = []
     error = []
     p_term = []
     i_term = []
@@ -20,13 +22,20 @@ def main():
                 p_term.apppend(vals[2])
                 i_term.apppend(vals[3])
                 d_term.apppend(vals[4])
+                reference.apppend(vals[5])
 
         except ValueError:
             pass
 
-    print len(output)
+    print (len(measurement))
 
+    plt.figure()
     plt.plot(measurement, label="measurement")
+    plt.plot(reference, label="reference")
+    plt.grid()
+    plt.legend()
+
+    plt.figure()
     plt.plot(error, label="error")
     plt.plot(p_term, label="proportional")
     plt.plot(i_term, label="integral")
