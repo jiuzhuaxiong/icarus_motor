@@ -24,7 +24,7 @@ inline void CHA_rise_isr() {
     // tick -= (1>>!val);
 
 
-inline void I1_isr_rise(){
+inline void I1_isr_fall(){
     if(I2){
 
         if(!tick_offset){
@@ -46,7 +46,7 @@ inline void I1_isr_rise(){
     }
 }
 
-inline void I1_isr_fall(){
+inline void I1_isr_rise(){
     if(I2){
 
         if(!tick_offset){
@@ -210,6 +210,20 @@ void velocity_measure_thread(){
         }
         Thread::wait(VEL_PERIOD);
     }
+
+    // float curr_velocity = 0;
+    // while(1){
+    //     if (velocity < VEL_THRESH && velocity > -VEL_THRESH){
+    //         curr_velocity = 1000.0/(VEL_PERIOD)*(tick_diff)/117.0;
+    //         velocity = 0.2*curr_velocity +0.8*velocity;
+    //     }
+    //     else {
+    //         curr_velocity = 1000000.0/(float)t_diff; // 1 revolutions * 10^6 pecoseconds
+    //         velocity = 0.2*curr_velocity +0.8*velocity;
+    //     }
+    //     Thread::wait(VEL_PERIOD);
+
+    // }
 }
 
 
@@ -252,6 +266,8 @@ void terminateControlThreads(){
 
 
 void controlOutput(){
+    motorHome();
+
     // Music Command
     if (n_cmd) {
         // Play music
@@ -274,9 +290,10 @@ void controlOutput(){
                 else                                    
                     vel_controller.setParams(KP_VELOCITY_FAST, KI_VELOCITY_FAST, KD_VELOCITY_FAST);
 
-                if (V < 0)  lead = -2;
-                else        lead = 2;
+                if (V < 0.0)    lead = -2;
+                else            lead = 2;
 
+                PRINT_DEBUG("LEAD %d", lead);
                 // Start velocity control thread
                 thread_v.start(velocity_measure_thread);
                 thread_vel_control.start(velocity_control_thread);
@@ -320,8 +337,7 @@ void parseInput(){
                 } 
                 else ++in_idx;
             }
-            PRINT_DEBUG("%d.%03d",(int)velocity,(int)(velocity*1000)%1000);
-            
+            // PRINT_DEBUG("%d.%03d",(int)rotations,(int)(rotations*1000)%1000);
             Thread::wait(100);
         }
 
@@ -386,7 +402,7 @@ int main() {
     I1.rise(&I1_isr_rise);
     I1.fall(&I1_isr_fall);
 
-    // thread_diff.start(tick_diff_thread);
+    thread_diff.start(tick_diff_thread);
     // thread_v.start(velocity_measure_thread); 
     // thread_r.start(rotations_thread);
 
