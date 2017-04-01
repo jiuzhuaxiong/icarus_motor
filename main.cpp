@@ -11,9 +11,9 @@
 
 
 inline void CHA_rise_isr() {
-    tick += INC[CHB.read()];
+    tick -= INC[CHB.read()];
     tick_adjust_mutex.lock();
-    tick_adjust += INC[CHB.read()];
+    tick_adjust -= INC[CHB.read()];
     tick_adjust_mutex.unlock();
     // PRINT_DEBUG("Tick: %d", tick);
 }
@@ -51,7 +51,7 @@ inline void I1_isr_fall(){
 
         if(!tick_offset){
             tick_offset=(tick%117+117)%117;
-            rots++;
+            // rots++;
         }
         t_now_rise = t.read_us();
         t_diff_temp = t_now_rise-t_before_rise;
@@ -140,7 +140,7 @@ int8_t motorHome() {
         PRINT_DEBUG("Waiting to stabilise");
         wait(1.0);
         curr_state = readRotorState();
-        stable = (curr_state == prev_state);
+        stable = (tick_diff == 0) && (curr_state == prev_state);
         // stable = (curr_state == 0) && (curr_state == prev_state);
 
         prev_state = curr_state;
@@ -175,8 +175,6 @@ void spin(){
         }
     }
 }
-
-volatile int tick_diff;
 
 void tick_diff_thread(){
     int tick_before;
@@ -379,32 +377,35 @@ int main() {
     // PRINT_DEBUG("Starting velocity thread");
 
     PRINT_DEBUG("Synchronising state");
-    orState = motorHome();
 
 
     CHA.rise(&CHA_rise_isr);
     I1.rise(&I1_isr_rise);
     I1.fall(&I1_isr_fall);
 
-    // thread_diff.start(tick_diff_thread);
-    // thread_v.start(velocity_measure_thread); 
-    // thread_r.start(rotations_thread);
+    thread_diff.start(tick_diff_thread);
 
+    orState = motorHome();
+
+    thread_v.start(velocity_measure_thread); 
+    thread_r.start(rotations_thread);
 
     PRINT_DEBUG("Starting timer");
     t.start();
 
     // V = 8.0;
     // thread_vel_control.start(velocity_control_thread);
-    // thread_spin.start(spin);
+    thread_spin.start(spin);
 
     // Run a while loop trying to parse     
-    parseInput();
+    // parseInput();
     // ANDREW'S DEBUG SECTION
 
 
     while (1){
-        // PRINT_DEBUG("%d.%03d",(int)rotations,(int)(rotations*1000)%1000);
+         PRINT_DEBUG("Rot: %d.%03d",(int)rotations,(int)(rotations*1000)%1000);
+//        PRINT_DEBUG("Rots: %d, Ticks: %d",rots,tick);
+        // PRINT_DEBUG("Vel: %d.%03d",(int)velocity,(int)(velocity*1000)%1000);
         Thread::wait(100);
     }
 

@@ -16,7 +16,7 @@ const int8_t STATE_MAP[] = {0x07,0x05,0x03,0x04,0x01,0x00,0x02,0x08};
 // Phase lead to make motor spin
 
 // Increment values for the ticks encoder
-const int INC[2] = {-1, 1};
+const int INC[2] = {1, -1};
 
 const int VEL_PERIOD = 30;     // in milliseconds
 
@@ -64,6 +64,7 @@ volatile int pwm_period = 400; // in microseconds
 volatile int rots = 0;
 volatile int tick_offset = 0;
 volatile int tick_adjust = 0;
+volatile int tick_diff;
 volatile float rotations = 0;
 Mutex tick_adjust_mutex;
 
