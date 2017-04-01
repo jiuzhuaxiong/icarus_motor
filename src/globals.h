@@ -78,7 +78,7 @@ volatile int8_t melody_size=0; // Size of N and D
 char input[49];
 int8_t in_idx = 0;
 
-int8_t lead = -2;  // 2 for forwards, -2 for backwards
+volatile int8_t lead = -2;  // 2 for forwards, -2 for backwards
 
 Timer t;
 
