@@ -11,9 +11,9 @@
 
 
 inline void CHA_rise_isr() {
-    tick -= INC[CHB.read()];
+    tick += INC[CHB.read()];
     tick_adjust_mutex.lock();
-    tick_adjust -= INC[CHB.read()];
+    tick_adjust += INC[CHB.read()];
     tick_adjust_mutex.unlock();
     // PRINT_DEBUG("Tick: %d", tick);
 }
@@ -24,7 +24,7 @@ inline void CHA_rise_isr() {
     // tick -= (1>>!val);
 
 
-inline void I1_isr_fall(){
+inline void I1_isr_rise(){
     if(I2){
 
         if(!tick_offset){
@@ -46,7 +46,7 @@ inline void I1_isr_fall(){
     }
 }
 
-inline void I1_isr_rise(){
+inline void I1_isr_fall(){
     if(I2){
 
         if(!tick_offset){
