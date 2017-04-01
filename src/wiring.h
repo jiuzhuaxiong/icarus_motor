@@ -1,6 +1,8 @@
 #ifndef WIRING_H
 #define WIRING_H
 
+#include "mbed.h"
+
 // Photointerrupter input pins
 #define I1pin D2
 #define I2pin D11
@@ -32,27 +34,27 @@ State   L1  L2  L3
 */
 
 // Status LED
-DigitalOut led1(LED1);
+extern DigitalOut led1;
 
 // Photointerrupter inputs
-InterruptIn I1(I1pin);
-InterruptIn I2(I2pin);
-InterruptIn I3(I3pin);
+extern InterruptIn I1;
+extern InterruptIn I2;
+extern InterruptIn I3;
 
 // Quadrature inputs
-InterruptIn CHA(CHApin);
-DigitalIn CHB(CHBpin);
+extern InterruptIn CHA;
+extern DigitalIn CHB;
 
 // Motor Drive outputs
-DigitalOut L1L(L1Lpin);
-PwmOut L1H(L1Hpin);
-DigitalOut L2L(L2Lpin);
-PwmOut L2H(L2Hpin);
-DigitalOut L3L(L3Lpin);
-PwmOut L3H(L3Hpin);
+extern DigitalOut L1L;
+extern PwmOut L1H;
+extern DigitalOut L2L;
+extern PwmOut L2H;
+extern DigitalOut L3L;
+extern PwmOut L3H;
 
 // Serial output
-Serial pc(SERIAL_TX, SERIAL_RX);
+extern Serial pc;
 
 // Debug logger
 #define DEBUG_LEVEL 1
@@ -66,5 +68,3 @@ Serial pc(SERIAL_TX, SERIAL_RX);
 
 
 #endif
-
-
