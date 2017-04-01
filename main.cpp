@@ -156,8 +156,6 @@ volatile int t_diff_temp=0;
 volatile float pwm_duty_cycle = 1;
 volatile int pwm_period = 400; // in microseconds
 
-volatile int rots;
-
 volatile int rots = 0;
 volatile int tick_offset = 0;
 volatile int tick_adjust = 0;
@@ -203,6 +201,9 @@ int8_t orState = 0;    //Rotot offset at motor state 0
 
 inline void CHA_rise_isr() {
     tick += INC[CHB.read()];
+    tick_adjust_mutex.lock();
+    tick_adjust += INC[CHB.read()];
+    tick_adjust_mutex.unlock();
     // PRINT_DEBUG("Tick: %d", tick);
 }
 
@@ -228,11 +229,9 @@ inline void I1_isr_rise(){
             t_diff = -t_diff_temp;
             t_before_rise = t_now_rise;
             rots--;
-            if (velocity > VEL_THRESH && velocity < -VEL_THRESH){
-                tick_adjust_mutex.lock();
-                tick_adjust = (rots*117)+tick_offset;
-                tick_adjust_mutex.unlock();
-            }
+            tick_adjust_mutex.lock();
+            tick_adjust = (rots*117)+tick_offset;
+            tick_adjust_mutex.unlock();
         }
     }
 }
@@ -250,11 +249,10 @@ inline void I1_isr_fall(){
           t_diff = t_diff_temp;
           t_before_fall = t_now_fall;
           rots++;
-            if (velocity > VEL_THRESH && velocity < -VEL_THRESH){
-                tick_adjust_mutex.lock();
-                tick_adjust = ((rots-1)*117)+tick_offset;
-                tick_adjust_mutex.unlock();
-            }
+            tick_adjust_mutex.lock();
+            tick_adjust = ((rots-1)*117)+tick_offset;
+            tick_adjust_mutex.unlock();
+
         }   
 
     }
@@ -381,9 +379,6 @@ void tick_diff_thread(){
 
 void rotations_thread(){
     while(1){
-        if(tick_adjust_mutex.trylock()){
-            tick_adjust += tick_diff;
-        }
         rotations = (float)tick_adjust/117.0;
         Thread::wait(VEL_PERIOD);
     }
@@ -671,9 +666,6 @@ int main() {
 
     PRINT_DEBUG("Starting velocity thread");
 
-    thread_diff.start(tick_diff_thread);
-    // thread_v.start(velocity_thread);
-    thread_r.start(rotations_thread);
 
     PRINT_DEBUG("Synchronising state");
     orState = motorHome();
@@ -683,6 +675,9 @@ int main() {
     I1.rise(&I1_isr_rise);
     I1.fall(&I1_isr_fall);
 
+    thread_diff.start(tick_diff_thread);
+    // thread_v.start(velocity_thread); 
+    thread_r.start(rotations_thread);
 
 
     PRINT_DEBUG("Starting timer");
@@ -694,30 +689,15 @@ int main() {
     // thread_vel_control.start(velocity_control_thread);
 
     // Run a while loop trying to parse     
-    parse_input_thread();
 
 
-    // while (1){
-    //     parse_input_thread();
+    // parse_input_thread();
+    // ANDREW'S DEBUG SECTION
 
-    //     // set_pwm(239);
-    //     // PRINT_DEBUG("Tick: %d", tick);
-    //     // Thread::wait(100);
-    //     // PRINT_DEBUG("Vel:%d.%03d",(int)(velocity),abs((int)(velocity*1000)%1000));
-    //     // PRINT_DEBUG("Ticks: %d",tick);
-    //     // PRINT_DEBUG("Rots: %d",rots)
-    //     Thread::wait(100);
-    // }
+
     while (1){
-        // parse_input_thread();
 
-        // // set_pwm(239);
-        // PRINT_DEBUG("Tick: %d", tick);
-        // // Thread::wait(100);
-        // // PRINT_DEBUG("Vel:%d.%03d",(int)(velocity),abs((int)(velocity*1000)%1000));
-        // // PRINT_DEBUG("Ticks: %d",tick);
-        // PRINT_DEBUG("Rots: %d",rots)
-        PRINT_DEBUG("%d.%d",(int)rotations,(int)(rotations*100)%100);
+        PRINT_DEBUG("%d.%03d",(int)rotations,(int)(rotations*1000)%1000);
         Thread::wait(100);
     }
 
