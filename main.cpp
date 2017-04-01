@@ -2,200 +2,10 @@
 #include "rtos.h"
 #include <stdlib.h>
 
+#include "parse.h"
+#include "globals.h"
+#include "PidController.h"
 #include "wiring.h"
-
-// ======================================== GLOBAL CONSTANTS ========================================
-
-class PidController {
-
-public:
-  
-  PidController(float k_p, float k_i, float k_d, float max_out=1.0) :
-    k_p_(k_p), k_i_(k_i), k_d_(k_d), max_out_(max_out), min_out_(0.0), 
-    last_error_(0.0), last_de_dt_(0.0), integrated_error_(0.0) 
-  {
-  }
-
-  float computeOutput(float reference, float measurement, float dt)
-  {
-    // convert time to seconds
-    // dt *= 1000000;
-
-    // compute error:
-    float error = reference - measurement;
-    
-    // compute error derivative:
-    float de_dt = (error - last_error_ ) / dt;
-
-    // Do smoothing (numeric derivatives are noisy):
-    de_dt = 0.7 * last_de_dt_ + 0.3 * de_dt;
-
-    // compute output:
-    float output = k_p_ * error + k_i_ * integrated_error_ + k_d_ * de_dt;
-
-    
-    // Check for saturation - anti-reset windup
-    if (output > max_out_) {
-      // clamp -- and DO NOT INTEGRATE ERROR (anti- reset windup)
-      output = max_out_; 
-    }
-    else if (output < min_out_) 
-    {
-      // clamp -- and DO NOT INTEGRATE ERROR (anti- reset windup)
-      output = min_out_; 
-    } 
-    else if (error < 0.2*measurement && error > -0.2*measurement)
-    {
-      integrated_error_ += error * dt; 
-    }
-
-    // save variables
-    last_error_ = error;
-    last_de_dt_ = de_dt;
-    
-    PRINT_DEBUG("Vel: %d.%03d Err: %de-9 P: %de-9 I: %de-9 D: %de-9",
-      (int)(measurement),
-      abs((int)(measurement*1000)%1000),
-      (int)(error*1000000000),
-      (int)(k_p_*error*1000000000),
-      (int)(k_i_*integrated_error_*1000000000),
-      (int)(k_d_*de_dt*1000000000)
-    );
-
-    // PRINT_DEBUG("Error: %d", (int)(error*1000));
-    // PRINT_DEBUG("Output: %d", (int)(output*1000));
-    
-    return output;
-  }
-
-  void setParams(float k_p, float k_i, float k_d, float max_out=1.0)
-  {
-    k_p_ = k_p;
-    k_i_ = k_i;
-    k_d_ = k_d;
-    max_out_ = max_out;
-  }
-
-  inline void reset(){
-    last_error_ = 0.0; 
-    last_de_dt_ = 0.0; 
-    integrated_error_ = 0.0; 
-  }
-
-
-private:
-
-  float k_p_; 
-  float k_i_; 
-  float k_d_; 
-
-  float max_out_;
-  float min_out_;
-
-  float last_error_; 
-  float last_de_dt_; 
-  float integrated_error_; 
-
-  // float time_start_;
-  // float time_end_;
-
-};
-
-// ======================================== GLOBAL CONSTANTS ========================================
-
-// Drive state to output table
-const int8_t DRIVE_TABLE[] = {0x12,0x18,0x09,0x21,0x24,0x06,0x00,0x00};
-
-// Mapping from interrupter inputs to sequential rotor states. 0x00 and 0x07 are not valid
-const int8_t STATE_MAP[] = {0x07,0x05,0x03,0x04,0x01,0x00,0x02,0x08};  
-// const int8_t STATE_MAP[] = {0x07,0x01,0x03,0x02,0x05,0x00,0x04,0x07}; // Alternative if phase order of input or drive is reversed
-
-// Phase lead to make motor spin
-
-// Increment values for the ticks encoder
-const int INC[2] = {1, -1};
-
-const int VEL_PERIOD = 30;     // in milliseconds
-
-
-const float VEL_THRESH = 10.0;
-const int TICK_DIFF_THRESH = 35;
-
-// CONTROLLER PARAMETERS
-const float KP_VELOCITY_FAST = 0.013;
-const float KI_VELOCITY_FAST = 0.01;
-const float KD_VELOCITY_FAST = 0.000742;
-
-const float KP_VELOCITY_SLOW = 0.015;;
-const float KI_VELOCITY_SLOW = 0.000000002;
-const float KD_VELOCITY_SLOW = 0.000024;
-
-// NOTES DATA
-const uint8_t notes[7] = {142, 127, 239, 213, 190, 179, 159}; // A B C D E F G
-const uint8_t sharps[7] = {134, 127, 225, 201, 179, 169, 150}; // A# B C# D# F F# G#
-const uint8_t flats[7] = {150, 134, 245, 225, 201, 190, 190}; //A^ B^ C^ D^ E^ E G^
-
-
-
-// ======================================== GLOBAL VARIABLES ========================================
-
-// Value of the ticks encoder
-volatile int tick = 0;  
-
-volatile int8_t rotorState;
-
-volatile float velocity = 0;
-
-volatile int t_before_rise = 0;
-volatile int t_now_rise = 0;
-volatile int t_before_fall = 0;
-volatile int t_now_fall = 0;
-volatile int t_diff = 2147482647; // revolutions/sec is 1/t_diff
-
-volatile int t_diff_temp=0;
-
-volatile float pwm_duty_cycle = 1;
-volatile int pwm_period = 400; // in microseconds
-
-volatile int rots = 0;
-volatile int tick_offset = 0;
-volatile int tick_adjust = 0;
-volatile float rotations = 0;
-Mutex tick_adjust_mutex;
-
-volatile float R = 0;
-volatile float V = 0;  // Command line arguments
-volatile bool r_cmd = false, v_cmd = false, n_cmd = false;  // True if R, V were updated during the last command
-volatile uint8_t* N;
-volatile uint8_t* D;
-volatile int8_t melody_size=0; // Size of N and D
-
-char input[49];
-int8_t in_idx = 0;
-
-int8_t lead = 2;  // 2 for forwards, -2 for backwards
-
-Timer t;
-
-Thread thread_diff(osPriorityNormal, 300);
-Thread thread_r(osPriorityNormal, 500);
-Thread thread_v(osPriorityNormal, 500);
-Thread thread_spin(osPriorityNormal, 500);
-Thread thread_vel_control;
-Thread thread_music(osPriorityNormal, 500);     // Verify stack size
-
-// Thread thread_parser(osPriorityNormal, 700);
-// int pwm_on = 0.5;
-
-// PidController vel_controller(0.01, 0.00000001, 0.1);
-//PID values from ZiglerNicholas [0.021, 0.07636363636363636, 0.0014437500000000002]
-PidController vel_controller(KP_VELOCITY_FAST, KI_VELOCITY_FAST, KD_VELOCITY_FAST); 
-//PidController pos_controller(100.0, 0.0, 0.0 0.0 1.0);
-// PidController vel_controller(0.018, 0.109, 0.000742); //PID values from ZiglerNicholas [0.021, 0.07636363636363636, 0.0014437500000000002]
-
-
-
-int8_t orState = 0;    //Rotot offset at motor state 0
 
 // ======================================== INTERRUPTS ========================================
 
@@ -489,100 +299,7 @@ void controlOutput(){
 }
 
 
-
-// ======================================== PARSER ========================================
-
-bool parseCmd(char* in, float& r, float& v, bool& r_cmd, bool& v_cmd){
-    char buf_r[7] = {0};
-    char buf_v[7] = {0};
-    char* v_pos = strchr(in,'V');
-    
-    char *r_val_start, *v_val_start;
-    int r_val_len, v_val_len;
-    
-    if((in[0] == 'R') && (v_pos != NULL)){ // R and V command
-        r_val_start = in + 1;
-        r_val_len = v_pos - r_val_start;
-        v_val_len = (in + strlen(in)) - (v_pos+1);
-
-        r_cmd = true;
-        v_cmd = true;
-    }
-    // Only R command
-    else if(in[0] == 'R'){ 
-        r_val_start = in + 1;
-        r_val_len = (in + strlen(in)) - r_val_start;
- 
-        r_cmd = true;
-        v_cmd = false;
-    }
-    // Only V command
-    else if(in[0] == 'V'){ 
-        v_val_start = in + 1;
-        v_val_len = (in + strlen(in)) - v_val_start;
-        
-        r_cmd = false;
-        v_cmd = true;
-    }
-
-    // Used for invalid input commands, deal with at higher level
-    if(!r_cmd && !v_cmd) return false;
-
-    if(r_cmd){
-        // Copy the R value in buf_r
-        memcpy( buf_r, r_val_start, r_val_len);
-        r = atof(buf_r);
-    }
-
-    if(v_cmd){
-        // Copy the V value in buf_v
-        memcpy( buf_v, v_val_start, v_val_len);
-        v = atof(buf_v);
-        // Make the v positive if r was also specified
-        if(v < 0.0 && r_cmd)     v = 0.0 - v;
-    }
-
-    return true;   
-}
-
-
-bool parseNote(char* in, uint8_t* note, uint8_t* duration, int8_t& size){
-
-    if(in[0] == 'T'){
-        int8_t i=1;
-        int8_t j=0;
-        while(i<strlen(in)){
-            if(in[i+1] == '#'){
-                uint8_t idx = in[i] & 0x0F;
-                note[j] = sharps[idx-1];
-                duration[j] = uint8_t(in[i+2]-'0');
-                i+=3;
-                j+=1;
-            }
-            else if(in[i+1] == '^'){
-                uint8_t idx = in[i] & 0x0F;
-                note[j] = flats[idx-1];
-                duration[j] = uint8_t(in[i+2]-'0');
-                i+=3;
-                j+=1;
-            }
-            else{
-                uint8_t idx = in[i] & 0x0F;
-                note[j] = notes[idx-1];
-                duration[j] = uint8_t(in[i+1]-'0');
-                i+=2;
-                j+=1;
-            }
-        }
-        //pc.printf("Size: %d\n", j);
-        size = j;
-        return true;
-    }
-    return false;
-}
-
-
-void parse_input_thread(){
+void parseInput(){
     bool command;
     float r_tmp, v_tmp;
     uint8_t n[16];
@@ -650,29 +367,17 @@ void parse_input_thread(){
 }
 
 
+
 // ======================================== MAIN ========================================
 
 
 int main() {
-    // =============================
-    // Test MAIN
-    // =============================
-
-
-    // =============================
-    // Original MAIN
-    // =============================
-
     pc.printf("Hello\n\r");
 
     PRINT_DEBUG("Setting PWM");
     set_pwm(pwm_period);
 
-    //orState is subtracted from future rotor state inputs to align rotor and motor states
-    
-
-    PRINT_DEBUG("Starting velocity thread");
-
+    // PRINT_DEBUG("Starting velocity thread");
 
     PRINT_DEBUG("Synchronising state");
     orState = motorHome();
@@ -688,7 +393,6 @@ int main() {
 
 
     PRINT_DEBUG("Starting timer");
-    // // Begin threads
     t.start();
 
     // V = 8.0;
@@ -696,9 +400,7 @@ int main() {
     thread_spin.start(spin);
 
     // Run a while loop trying to parse     
-
-
-    // parse_input_thread();
+    parseInput();
     // ANDREW'S DEBUG SECTION
 
 
