@@ -1,6 +1,14 @@
 import matplotlib.pyplot as plt
 
 
+
+def is_number(s):
+    try:
+        complex(s) # for int, long, float and complex
+    except ValueError:
+        return False
+    return True
+
 def main():
     out = []
     # f = open("vel.log")
@@ -15,14 +23,14 @@ def main():
 
     for r in f:
         try:
-            vals = [float(s) for s in vals.split() if s.isdigit()]
-            if len(vals == 5):
-                measurement.apppend(vals[0])
-                error.apppend(vals[1])
-                p_term.apppend(vals[2])
-                i_term.apppend(vals[3])
-                d_term.apppend(vals[4])
-                reference.apppend(vals[5])
+            vals = [float(s) for s in r.split() if is_number(s)]
+            if len(vals) == 7:
+                measurement.append(vals[0])
+                error.append(vals[1])
+                p_term.append(vals[2])
+                i_term.append(vals[3])
+                d_term.append(vals[4])
+                reference.append(vals[5])
 
         except ValueError:
             pass
