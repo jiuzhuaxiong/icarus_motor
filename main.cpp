@@ -331,8 +331,14 @@ void parseInput(){
         while (!command){
             if (pc.readable()){
                 input[in_idx] = pc.getc();
+                if(!PRINT_DEBUG){
+                    pc.printf(input[in_idx]);
+                }
                 if (input[in_idx] == '\r' || input[in_idx] == '\n'){
                     input[in_idx] = '\0';
+                    if(!PRINT_DEBUG){
+                        pc.printf("\n\r");
+                    }
                     command = true;
                     in_idx = 0;
                 } 
