@@ -241,7 +241,7 @@ void play_music_thread(){
     while(1){
         for(int i=0; i<melody_size; i++){
             set_pwm(N[i]);
-            Thread::wait(D[i]);
+            Thread::wait(uint16_t(D[i])*1000);
             // PRINT_DEBUG("Note: %u, Duration: %u", N[i], D[i]);
         }
     }
@@ -332,6 +332,7 @@ void parseInput(){
             if (pc.readable()){
                 input[in_idx] = pc.getc();
                 if (input[in_idx] == '\r' || input[in_idx] == '\n'){
+                    input[in_idx] = '\0';
                     command = true;
                     in_idx = 0;
                 } 
