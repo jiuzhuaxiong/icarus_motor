@@ -88,16 +88,16 @@ void motorOut(int8_t driveState){
 
     //Then turn on gnd
     if (driveOut & 0x01) L1L.write(1);
-    // if (driveOut & 0x02) L1H.write(1-pwm_duty_cycle);
-    if (driveOut & 0x02) L1H.write(pwm_duty_cycle);
+     if (driveOut & 0x02) L1H.write(1-pwm_duty_cycle);
+//    if (driveOut & 0x02) L1H.write(pwm_duty_cycle);
 
     if (driveOut & 0x04) L2L.write(1);
-    // if (driveOut & 0x08) L2H.write(1-pwm_duty_cycle);
-    if (driveOut & 0x08) L2H.write(pwm_duty_cycle);
+     if (driveOut & 0x08) L2H.write(1-pwm_duty_cycle);
+//    if (driveOut & 0x08) L2H.write(pwm_duty_cycle);
 
     if (driveOut & 0x10) L3L.write(1);
-    // if (driveOut & 0x20) L3H.write(1-pwm_duty_cycle);
-    if (driveOut & 0x20) L3H.write(pwm_duty_cycle);
+     if (driveOut & 0x20) L3H.write(1-pwm_duty_cycle);
+//    if (driveOut & 0x20) L3H.write(pwm_duty_cycle);
 
     // and turn on Vm
 }
@@ -202,13 +202,12 @@ void velocity_measure_thread(){
         // If getting within 35 ticks/VEL_PERIOD, use ticks for velocity
         if (tick_diff < TICK_DIFF_THRESH && tick_diff > -TICK_DIFF_THRESH){ 
             curr_velocity = 1000.0/(VEL_PERIOD)*(tick_diff)/117.0;
-            velocity = 0.2*curr_velocity +0.8*velocity;
         }
         // Else use I1 rotation counter for velocity
         else {
             curr_velocity = 1000000.0/(float)t_diff; // 1 revolutions * 10^6 pecoseconds
-            velocity = 0.2*curr_velocity +0.8*velocity;
         }
+        velocity = 0.2*curr_velocity +0.8*velocity;
         Thread::wait(VEL_PERIOD);
     }
 
@@ -230,7 +229,7 @@ void velocity_measure_thread(){
 
 void velocity_control_thread(){
     while(1){
-        pwm_duty_cycle = vel_controller.computeOutput(V, velocity, (float)VEL_PERIOD/1000.0, pwm_duty_cycle);
+        pwm_duty_cycle = vel_controller.computeOutput(V, velocity, (float)VEL_PERIOD/1000.0);
         // PRINT_DEBUG("Duty: 0.%03d",(int)(pwm_duty_cycle*1000))
         Thread::wait(VEL_PERIOD);
     }

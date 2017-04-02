@@ -27,11 +27,11 @@ const int8_t TICK_DIFF_THRESH = 35;
 // CONTROLLER PARAMETERS
 //PID values from ZiglerNicholas [0.021, 0.07636363636363636, 0.0014437500000000002]
 // const float KP_VELOCITY_FAST = 0.013;
-// const float KI_VELOCITY_FAST = 0.01;
+// const float KI_VELOCITY_FAST = 0.014;
 // const float KD_VELOCITY_FAST = 0.000742;
-const float KP_VELOCITY_FAST = 0.02;
-const float KI_VELOCITY_FAST = 0.0;
-const float KD_VELOCITY_FAST = 0.0;
+const float KP_VELOCITY_FAST = 0.036; //0.036
+const float KI_VELOCITY_FAST = 0.035952;//0.136752
+const float KD_VELOCITY_FAST = 0.00236925;//0.00236925
 
 const float KP_VELOCITY_SLOW = 0.015;;
 const float KI_VELOCITY_SLOW = 0.000000002;
@@ -62,7 +62,7 @@ volatile int t_diff = 2147482647; // revolutions/sec is 1/t_diff
 volatile int t_diff_temp=0;
 
 volatile float pwm_duty_cycle = 1;
-volatile int pwm_period = 400; // in microseconds
+volatile int pwm_period = 2000; // in microseconds
 
 volatile int rots = 0;
 volatile int tick_offset = 0;
