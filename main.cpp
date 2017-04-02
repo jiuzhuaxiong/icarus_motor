@@ -10,7 +10,7 @@
 // ======================================== INTERRUPTS ========================================
 
 
-inline void CHA_rise_isr() {
+inline void isrRiseCHA() {
     tick += INC[CHB.read()];
     tick_adjust_mutex.lock();
     tick_adjust += INC[CHB.read()];
@@ -24,7 +24,7 @@ inline void CHA_rise_isr() {
     // tick -= (1>>!val);
 
 
-inline void I1_isr_rise(){
+inline void isrRiseI1(){
     if(I2){
 
         if(!tick_offset){
@@ -46,7 +46,7 @@ inline void I1_isr_rise(){
     }
 }
 
-inline void I1_isr_fall(){
+inline void isrFallI1(){
     if(I2){
 
         if(!tick_offset){
@@ -158,7 +158,7 @@ int8_t motorHome() {
     return readRotorState();
 }
 
-void set_pwm(int p){
+void setPWM(int p){
     L1H.period_us(p);
     L2H.period_us(p);
     L3H.period_us(p);
@@ -180,7 +180,7 @@ void spin(){
     }
 }
 
-void tick_diff_thread(){
+void tickDiffThread(){
     int tick_before;
     while(1){
         tick_before = tick;
@@ -189,7 +189,7 @@ void tick_diff_thread(){
     }
 }
 
-void rotations_thread(){
+void rotationsThread(){
     while(1){
         rotations = ((float)tick_adjust)/117.0;
         Thread::wait(VEL_PERIOD);
@@ -197,7 +197,7 @@ void rotations_thread(){
 }
 
 
-void velocity_measure_thread(){
+void velocityMeasureThread(){
     float curr_velocity = 0;
     while(1){
         // If getting within 35 ticks/VEL_PERIOD, use ticks for velocity
@@ -214,7 +214,7 @@ void velocity_measure_thread(){
 }
 
 
-void velocity_control_thread(){
+void velocityControlThread(){
     while(1){
         pwm_duty_cycle = vel_controller.computeOutput(V, velocity, (float)VEL_PERIOD/1000.0);
         // PRINT_DEBUG("Duty: 0.%03d",(int)(pwm_duty_cycle*1000))
@@ -223,7 +223,7 @@ void velocity_control_thread(){
 }
 
 
-void position_control_thread(){
+void positionControlThread(){
     float out;   
     while(1){
         out = pos_controller.computeOutput(R, rotations, (float)VEL_PERIOD/1000.0);
@@ -245,11 +245,11 @@ void position_control_thread(){
 }
 
 
-void play_music_thread(){
+void playMusicThread(){
     pwm_duty_cycle = 0.5;
     while(1){
         for(int i=0; i<melody_size; i++){
-            set_pwm(N[i]);
+            setPWM(N[i]);
             Thread::wait(uint16_t(D[i])*1000);
             // PRINT_DEBUG("Note: %u, Duration: %u", N[i], D[i]);
         }
@@ -286,7 +286,7 @@ void controlOutput(){
     if (n_cmd) {
         // Play music
         thread_spin.start(spin);
-        thread_music.start(play_music_thread);
+        thread_music.start(playMusicThread);
     }
 
     else{
@@ -298,7 +298,7 @@ void controlOutput(){
         // Position/Velocity command
         else{
             // Set to the default pwm period
-            set_pwm(pwm_period);
+            setPWM(PWM_PERIOD);
 
             // Update controller parameters
             if (v_cmd) {
@@ -312,8 +312,8 @@ void controlOutput(){
 
                 PRINT_DEBUG("LEAD %d", lead);
                 // Start velocity control thread
-                thread_vel_measure.start(velocity_measure_thread);
-                thread_vel_control.start(velocity_control_thread);
+                thread_vel_measure.start(velocityMeasureThread);
+                thread_vel_control.start(velocityControlThread);
             }
 
             if(r_cmd){
@@ -322,8 +322,8 @@ void controlOutput(){
                 if (R < 0.0)    lead = -2;
                 else            lead = 2;
                 
-                thread_pos_measure.start(rotations_thread);
-                thread_pos_control.start(position_control_thread);
+                thread_pos_measure.start(rotationsThread);
+                thread_pos_control.start(positionControlThread);
             }
 
             // Start the thread that spins the motor
@@ -331,81 +331,6 @@ void controlOutput(){
         }
     }
 }
-
-
-// void parseInput(){
-//     bool command;
-//     float r_tmp, v_tmp;
-//     uint8_t n[16], d[16];
-//     int8_t s = 0;
-//     bool r_updated, v_updated;
-
-//     // Make the pointers point to the array with the notes
-//     N = n;
-//     D = d;
-
-//     while(1){
-//         command = false;
-        
-//         while (!command){
-//             if (pc.readable()){
-//                 input[in_idx] = pc.getc();
-//                 if(!DEBUG_LEVEL){
-//                     pc.printf(input[in_idx]);
-//                 }
-//                 if (input[in_idx] == '\r' || input[in_idx] == '\n'){
-//                     input[in_idx] = '\0';
-//                     if(!DEBUG_LEVEL){
-//                         pc.printf("\n\r");
-//                     }
-//                     command = true;
-//                     in_idx = 0;
-//                 } 
-//                 else ++in_idx;
-//             }
-//             // PRINT_DEBUG("%d.%03d",(int)rotations,(int)(rotations*1000)%1000);
-//             Thread::wait(100);
-//         }
-
-//         r_updated = false;
-//         v_updated = false;
-
-//         if ( parseNote(input, n, d, s) ){
-//             n_cmd = true;
-//         }
-//         else if( parseCmd(input, r_tmp, v_tmp, r_updated, v_updated) ){
-//             n_cmd = false;
-//             r_cmd = r_updated;
-//             v_cmd = v_updated;
-//         }      
-        
-//         // Notes command:    n_cmd=true
-//         // Rotation command: r_cmd = true
-//         // Velocity command: v_cmd = true
-//         // Autotune command: r_cmd=false, v_cmd=false, n_cmd=false
-//         // States - n_cmd=true 
-
-//         terminateControlThreads();        
-
-//         // Update reference values - does not matter if not meaningful: will be ignored by controlOutput()
-//         R = r_tmp;
-//         V = v_tmp;
-//         melody_size = s;
-
-//         // Print the new command
-//         if (n_cmd){
-//             for(int i=0; i<s; ++i){
-//                 PRINT_DEBUG("Note: %u, Duration: %u", N[i], D[i]);
-//             }
-//         }
-//         else{
-//             PRINT_DEBUG("R:%d.%03d V:%d.%03d", (int)(R), abs((int)(R*1000)%1000), (int)(V), abs((int)(V*1000)%1000));
-//         }
-
-//         // Start the threads to control the behaviour
-//         controlOutput();
-//     }
-// }
 
 
 
@@ -416,40 +341,23 @@ int main() {
     pc.printf("Hello\n\r");
 
     PRINT_DEBUG("Setting PWM");
-    set_pwm(pwm_period);
+    setPWM(PWM_PERIOD);
 
     PRINT_DEBUG("Synchronising state");
 
+    // Attach interrupts
+    CHA.rise(&isrRiseCHA);
+    I1.rise(&isrRiseI1);
+    I1.fall(&isrFallI1);
 
-    CHA.rise(&CHA_rise_isr);
-    I1.rise(&I1_isr_rise);
-    I1.fall(&I1_isr_fall);
+    thread_diff.start(tickDiffThread);
 
-    thread_diff.start(tick_diff_thread);
+    origin_state = motorHome();
 
-    orState = motorHome();
-
-    // thread_vel_measure.start(velocity_measure_thread); 
-    // thread_pos_measure.start(rotations_thread);
 
     PRINT_DEBUG("Starting timer");
     t.start();
 
-    // V = 8.0;
-    // thread_vel_control.start(velocity_control_thread);
-    // thread_spin.start(spin);
-
-    // Run a while loop trying to parse     
-    // parseInput();
-    // ANDREW'S DEBUG SECTION
-
-
-    // while (1){
-    //     // PRINT_DEBUG("Rot: %d.%03d",(int)rotations,(int)(rotations*1000)%1000);
-    //     // PRINT_DEBUG("Rots: %d, Ticks: %d",rots,tick);
-    //     // PRINT_DEBUG("Vel: %d.%03d",(int)velocity,(int)(velocity*1000)%1000);
-    //     Thread::wait(100);
-    // }
 
     bool command, r_updated, v_updated;
     float r_tmp, v_tmp;

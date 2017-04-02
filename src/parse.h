@@ -66,17 +66,17 @@ bool parseNote(char* in, uint8_t* note, uint8_t* duration, int8_t& size){
         uint8_t idx = in[i] & 0x0F;
 
         if(in[i+1] == '#'){
-            note[j] = sharps[idx-1];
+            note[j] = SHARPS[idx-1];
             duration[j] = uint8_t(in[i+2]-'0');
             i+=3;
         }
         else if(in[i+1] == '^'){
-            note[j] = flats[idx-1];
+            note[j] = FLATS[idx-1];
             duration[j] = uint8_t(in[i+2]-'0');
             i+=3;
         }
         else{
-            note[j] = notes[idx-1];
+            note[j] = NOTES[idx-1];
             duration[j] = uint8_t(in[i+1]-'0');
             i+=2;
         }

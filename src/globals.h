@@ -42,11 +42,14 @@ const float KI_POS = 0.0011; //0.0555
 const float KD_POS = 0.00028125; //0.000028125
 
 // NOTES DATA
-const uint8_t notes[7] = {142, 127, 239, 213, 190, 179, 159}; // A B C D E F G
-const uint8_t sharps[7] = {134, 127, 225, 201, 179, 169, 150}; // A# B C# D# F F# G#
-const uint8_t flats[7] = {150, 134, 245, 225, 201, 190, 190}; //A^ B^ C^ D^ E^ E G^
+const uint8_t NOTES[7] = {142, 127, 239, 213, 190, 179, 159}; // A B C D E F G
+const uint8_t SHARPS[7] = {134, 127, 225, 201, 179, 169, 150}; // A# B C# D# F F# G#
+const uint8_t FLATS[7] = {150, 134, 245, 225, 201, 190, 190}; //A^ B^ C^ D^ E^ E G^
 
-const uint16_t pwm_period = 2000; // in microseconds
+const uint16_t PWM_PERIOD = 2000; // in microseconds
+
+// const float ACCELERATION = ;
+// const float MAX_SPEED = 50.0;
 
 
 // ======================================== GLOBAL VARIABLES ========================================
@@ -93,7 +96,7 @@ volatile int8_t lead = -2;  // 2 for forwards, -2 for backwards
 
 Timer t;
 
-int8_t orState = 0;    //Rotor offset at motor state 0
+int8_t origin_state = 0;    //Rotor offset at motor state 0
 
 
 // ======================================== THREADS ========================================
