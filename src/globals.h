@@ -6,7 +6,7 @@
 
 // ======================================== GLOBAL CONSTANTS ========================================
 
-const uint16_t PARSER_WAIT = 250;
+const uint16_t PARSER_WAIT = 100;
 
 // Drive state to output table
 const int8_t DRIVE_TABLE[] = {0x12,0x18,0x09,0x21,0x24,0x06,0x00,0x00};
