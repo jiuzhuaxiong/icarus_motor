@@ -275,7 +275,7 @@ void controlOutput(){
     // Music Command
     if (n_cmd) {
         // Play music
-        thread_spin.start(spin);
+        // thread_spin.start(spin);
         thread_music.start(play_music_thread);
     }
 
@@ -287,6 +287,9 @@ void controlOutput(){
 
         // Position/Velocity command
         else{
+            // Set to the default pwm period
+            set_pwm(pwm_period);
+
             // Update controller parameters
             if (v_cmd) {
                 if(V > -VEL_THRESH && V < VEL_THRESH)  

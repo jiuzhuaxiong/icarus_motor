@@ -42,6 +42,7 @@ const uint8_t notes[7] = {142, 127, 239, 213, 190, 179, 159}; // A B C D E F G
 const uint8_t sharps[7] = {134, 127, 225, 201, 179, 169, 150}; // A# B C# D# F F# G#
 const uint8_t flats[7] = {150, 134, 245, 225, 201, 190, 190}; //A^ B^ C^ D^ E^ E G^
 
+const uint16_t pwm_period = 2000; // in microseconds
 
 
 // ======================================== GLOBAL VARIABLES ========================================
@@ -61,8 +62,8 @@ volatile int t_diff = 2147482647; // revolutions/sec is 1/t_diff
 
 volatile int t_diff_temp=0;
 
-volatile float pwm_duty_cycle = 1;
-volatile int pwm_period = 2000; // in microseconds
+volatile float    pwm_duty_cycle  = 1;
+// volatile uint16_t pwm_period      = pwm_period_default; // in microseconds
 
 volatile int rots = 0;
 volatile int tick_offset = 0;
