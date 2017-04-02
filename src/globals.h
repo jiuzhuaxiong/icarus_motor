@@ -50,15 +50,15 @@ const uint16_t pwm_period = 2000; // in microseconds
 // Value of the ticks encoder
 volatile int tick = 0;  
 
-volatile int8_t rotorState;
 
-volatile float velocity = 0;
+volatile float velocity     = 0;
+volatile float rotations    = 0;
 
-volatile int t_before_rise = 0;
-volatile int t_now_rise = 0;
-volatile int t_before_fall = 0;
-volatile int t_now_fall = 0;
-volatile int t_diff = 2147482647; // revolutions/sec is 1/t_diff
+volatile int t_before_rise  = 0;
+volatile int t_now_rise     = 0;
+volatile int t_before_fall  = 0;
+volatile int t_now_fall     = 0;
+volatile int t_diff         = 2147482647; // revolutions/sec is 1/t_diff
 
 volatile int t_diff_temp=0;
 
@@ -69,17 +69,20 @@ volatile int rots = 0;
 volatile int tick_offset = 0;
 volatile int tick_adjust = 0;
 volatile int tick_diff;
-volatile float rotations = 0;
 Mutex tick_adjust_mutex;
 
+// Rotation reference
 volatile float R = 0;
-volatile float V = 0;  // Command line arguments
+// Velocity reference
+volatile float V = 0;  
 volatile bool r_cmd = false, v_cmd = false, n_cmd = false;  // True if R, V were updated during the last command
 volatile uint8_t* N;
 volatile uint8_t* D;
-volatile int8_t melody_size=0; // Size of N and D
+volatile int8_t melody_size = 0; // Size of N and D
 
+// Input buffer
 char input[49];
+// Index for input buffer
 int8_t in_idx = 0;
 
 volatile int8_t lead = -2;  // 2 for forwards, -2 for backwards
@@ -92,8 +95,8 @@ int8_t orState = 0;    //Rotot offset at motor state 0
 // ======================================== THREADS ========================================
 
 Thread thread_diff(osPriorityNormal, 300);
-Thread thread_r(osPriorityNormal, 500);
-Thread thread_v(osPriorityNormal, 500);
+Thread thread_rot_measure(osPriorityNormal, 500);
+Thread thread_vel_measure(osPriorityNormal, 500);
 Thread thread_spin(osPriorityNormal, 500);
 Thread thread_vel_control;
 Thread thread_music(osPriorityNormal, 500);     // Verify stack size

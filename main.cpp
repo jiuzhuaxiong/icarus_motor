@@ -144,7 +144,6 @@ int8_t motorHome() {
         wait(1.0);
         curr_state = readRotorState();
         stable = (tick_diff == 0) && (curr_state == prev_state);
-        // stable = (curr_state == 0) && (curr_state == prev_state);
 
         prev_state = curr_state;
     }
@@ -210,20 +209,6 @@ void velocity_measure_thread(){
         velocity = 0.2*curr_velocity +0.8*velocity;
         Thread::wait(VEL_PERIOD);
     }
-
-    // float curr_velocity = 0;
-    // while(1){
-    //     if (velocity < VEL_THRESH && velocity > -VEL_THRESH){
-    //         curr_velocity = 1000.0/(VEL_PERIOD)*(tick_diff)/117.0;
-    //         velocity = 0.2*curr_velocity +0.8*velocity;
-    //     }
-    //     else {
-    //         curr_velocity = 1000000.0/(float)t_diff; // 1 revolutions * 10^6 pecoseconds
-    //         velocity = 0.2*curr_velocity +0.8*velocity;
-    //     }
-    //     Thread::wait(VEL_PERIOD);
-
-    // }
 }
 
 
@@ -260,8 +245,8 @@ void terminateControlThreads(){
     thread_music.terminate();
 
     // Stop the measurement threads
-    thread_v.terminate();
-    thread_r.terminate();
+    thread_vel_measure.terminate();
+    thread_rot_measure.terminate();
 
     // Reset the controllers for the next run
     vel_controller.reset();
@@ -275,7 +260,7 @@ void controlOutput(){
     // Music Command
     if (n_cmd) {
         // Play music
-        // thread_spin.start(spin);
+        thread_spin.start(spin);
         thread_music.start(play_music_thread);
     }
 
@@ -302,7 +287,7 @@ void controlOutput(){
 
                 PRINT_DEBUG("LEAD %d", lead);
                 // Start velocity control thread
-                thread_v.start(velocity_measure_thread);
+                thread_vel_measure.start(velocity_measure_thread);
                 thread_vel_control.start(velocity_control_thread);
             }
 
@@ -311,7 +296,7 @@ void controlOutput(){
                 // if(R < VEL_THRESH)  pos_controller.setParams(KP_VELOCITY_FAST, KI_VELOCITY_FAST, KD_VELOCITY_FAST);
                 // else                pos_controller.setParams(KP_VELOCITY_SLOW, KI_VELOCITY_SLOW, KD_VELOCITY_SLOW);
                 
-                thread_r.start(rotations_thread);
+                thread_rot_measure.start(rotations_thread);
             }
 
             // Start the thread that spins the motor
@@ -321,12 +306,128 @@ void controlOutput(){
 }
 
 
-void parseInput(){
-    bool command;
+// void parseInput(){
+//     bool command;
+//     float r_tmp, v_tmp;
+//     uint8_t n[16], d[16];
+//     int8_t s = 0;
+//     bool r_updated, v_updated;
+
+//     // Make the pointers point to the array with the notes
+//     N = n;
+//     D = d;
+
+//     while(1){
+//         command = false;
+        
+//         while (!command){
+//             if (pc.readable()){
+//                 input[in_idx] = pc.getc();
+//                 if(!DEBUG_LEVEL){
+//                     pc.printf(input[in_idx]);
+//                 }
+//                 if (input[in_idx] == '\r' || input[in_idx] == '\n'){
+//                     input[in_idx] = '\0';
+//                     if(!DEBUG_LEVEL){
+//                         pc.printf("\n\r");
+//                     }
+//                     command = true;
+//                     in_idx = 0;
+//                 } 
+//                 else ++in_idx;
+//             }
+//             // PRINT_DEBUG("%d.%03d",(int)rotations,(int)(rotations*1000)%1000);
+//             Thread::wait(100);
+//         }
+
+//         r_updated = false;
+//         v_updated = false;
+
+//         if ( parseNote(input, n, d, s) ){
+//             n_cmd = true;
+//         }
+//         else if( parseCmd(input, r_tmp, v_tmp, r_updated, v_updated) ){
+//             n_cmd = false;
+//             r_cmd = r_updated;
+//             v_cmd = v_updated;
+//         }      
+        
+//         // Notes command:    n_cmd=true
+//         // Rotation command: r_cmd = true
+//         // Velocity command: v_cmd = true
+//         // Autotune command: r_cmd=false, v_cmd=false, n_cmd=false
+//         // States - n_cmd=true 
+
+//         terminateControlThreads();        
+
+//         // Update reference values - does not matter if not meaningful: will be ignored by controlOutput()
+//         R = r_tmp;
+//         V = v_tmp;
+//         melody_size = s;
+
+//         // Print the new command
+//         if (n_cmd){
+//             for(int i=0; i<s; ++i){
+//                 PRINT_DEBUG("Note: %u, Duration: %u", N[i], D[i]);
+//             }
+//         }
+//         else{
+//             PRINT_DEBUG("R:%d.%03d V:%d.%03d", (int)(R), abs((int)(R*1000)%1000), (int)(V), abs((int)(V*1000)%1000));
+//         }
+
+//         // Start the threads to control the behaviour
+//         controlOutput();
+//     }
+// }
+
+
+
+// ======================================== MAIN ========================================
+
+
+int main() {
+    pc.printf("Hello\n\r");
+
+    PRINT_DEBUG("Setting PWM");
+    set_pwm(pwm_period);
+
+    PRINT_DEBUG("Synchronising state");
+
+
+    CHA.rise(&CHA_rise_isr);
+    I1.rise(&I1_isr_rise);
+    I1.fall(&I1_isr_fall);
+
+    thread_diff.start(tick_diff_thread);
+
+    orState = motorHome();
+
+    // thread_vel_measure.start(velocity_measure_thread); 
+    // thread_rot_measure.start(rotations_thread);
+
+    PRINT_DEBUG("Starting timer");
+    t.start();
+
+    // V = 8.0;
+    // thread_vel_control.start(velocity_control_thread);
+    // thread_spin.start(spin);
+
+    // Run a while loop trying to parse     
+    // parseInput();
+    // ANDREW'S DEBUG SECTION
+
+
+    // while (1){
+    //     // PRINT_DEBUG("Rot: %d.%03d",(int)rotations,(int)(rotations*1000)%1000);
+    //     // PRINT_DEBUG("Rots: %d, Ticks: %d",rots,tick);
+    //     // PRINT_DEBUG("Vel: %d.%03d",(int)velocity,(int)(velocity*1000)%1000);
+    //     Thread::wait(100);
+    // }
+
+    bool command, r_updated, v_updated;
     float r_tmp, v_tmp;
     uint8_t n[16], d[16];
-    int8_t s = 0;
-    bool r_updated, v_updated;
+    int8_t size = 0;
 
     // Make the pointers point to the array with the notes
     N = n;
@@ -338,14 +439,13 @@ void parseInput(){
         while (!command){
             if (pc.readable()){
                 input[in_idx] = pc.getc();
-                if(!DEBUG_LEVEL){
-                    pc.printf(input[in_idx]);
-                }
+                if(!DEBUG_LEVEL) pc.printf(input[in_idx]);
+                
                 if (input[in_idx] == '\r' || input[in_idx] == '\n'){
                     input[in_idx] = '\0';
-                    if(!DEBUG_LEVEL){
-                        pc.printf("\n\r");
-                    }
+                
+                    if(!DEBUG_LEVEL)    pc.printf("\n\r");
+                
                     command = true;
                     in_idx = 0;
                 } 
@@ -358,7 +458,7 @@ void parseInput(){
         r_updated = false;
         v_updated = false;
 
-        if ( parseNote(input, n, d, s) ){
+        if ( parseNote(input, n, d, size) ){
             n_cmd = true;
         }
         else if( parseCmd(input, r_tmp, v_tmp, r_updated, v_updated) ){
@@ -378,11 +478,11 @@ void parseInput(){
         // Update reference values - does not matter if not meaningful: will be ignored by controlOutput()
         R = r_tmp;
         V = v_tmp;
-        melody_size = s;
+        melody_size = size;
 
         // Print the new command
         if (n_cmd){
-            for(int i=0; i<s; ++i){
+            for(int i=0; i<size; ++i){
                 PRINT_DEBUG("Note: %u, Duration: %u", N[i], D[i]);
             }
         }
@@ -392,53 +492,6 @@ void parseInput(){
 
         // Start the threads to control the behaviour
         controlOutput();
-    }
-}
-
-
-
-// ======================================== MAIN ========================================
-
-
-int main() {
-    pc.printf("Hello\n\r");
-
-    PRINT_DEBUG("Setting PWM");
-    set_pwm(pwm_period);
-
-    // PRINT_DEBUG("Starting velocity thread");
-
-    PRINT_DEBUG("Synchronising state");
-
-
-    CHA.rise(&CHA_rise_isr);
-    I1.rise(&I1_isr_rise);
-    I1.fall(&I1_isr_fall);
-
-    thread_diff.start(tick_diff_thread);
-
-    orState = motorHome();
-
-    // thread_v.start(velocity_measure_thread); 
-    // thread_r.start(rotations_thread);
-
-    PRINT_DEBUG("Starting timer");
-    t.start();
-
-    // V = 8.0;
-    // thread_vel_control.start(velocity_control_thread);
-//    thread_spin.start(spin);
-
-    // Run a while loop trying to parse     
-    parseInput();
-    // ANDREW'S DEBUG SECTION
-
-
-    while (1){
-         // PRINT_DEBUG("Rot: %d.%03d",(int)rotations,(int)(rotations*1000)%1000);
-//        PRINT_DEBUG("Rots: %d, Ticks: %d",rots,tick);
-        // PRINT_DEBUG("Vel: %d.%03d",(int)velocity,(int)(velocity*1000)%1000);
-        Thread::wait(100);
     }
 
 }
