@@ -10,8 +10,6 @@ FIXES PID:
 MAIN BEHAVIOUR:
     - rotate home after completing a task (if needed)
 
-    - fix the memory requirements - reduce as much as possible
-
     - how do you detect that position control has finished
 
     - mutices in threads - you probably need them
@@ -22,6 +20,8 @@ MAIN BEHAVIOUR:
     - controller - try adding the output to the current duty instead of setting the duty to 1-output
 
 
+    NOTE !!!!!!!!
+        - after finishing position control, before a new command you should set rotations to 0 (does motor home do it???)
 
 
 
@@ -39,8 +39,26 @@ REPORT:
     - combining the output from position and velocity controllers - which one to choose (bing says choose the one that gives smaller output)
 
 
+    IMPORTANT:
+        - small pwm period does not work well for precise velocity control because finer values of the duty cycle don't have effect and 
+
+    THREAD ANALYSIS 
+        - priorities and stuff
+        - 
+
+
+
+
+
 AUTOTUNE:
     - check the behaviour of step input; do step input by changing pwm rapidly from 0 to 1
 
 
+
+T = 0.5265
+Kp = 0.06
+
+
+T = 0.006
+Kp = 0.06
 

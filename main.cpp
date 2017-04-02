@@ -87,6 +87,7 @@ void motorOut(int8_t driveState){
     if (~driveOut & 0x10) L3L.write(0);
 
     //Then turn on gnd
+    // Active Low - i.e. output of 1 means no speed, 0 means highest speed
     if (driveOut & 0x01) L1L.write(1);
      if (driveOut & 0x02) L1H.write(1-pwm_duty_cycle);
 //    if (driveOut & 0x02) L1H.write(pwm_duty_cycle);
@@ -113,6 +114,7 @@ inline int8_t readRotorState(){
 int8_t motorHome() {
     //Put the motor in drive state 0 and wait for it to stabilise
     PRINT_DEBUG("motor home");
+    lead = 2;
 
     L2H.write(1);
     PRINT_DEBUG("L2H Off");
@@ -189,7 +191,7 @@ void tick_diff_thread(){
 
 void rotations_thread(){
     while(1){
-        rotations = (float)tick_adjust/117.0;
+        rotations = ((float)tick_adjust)/117.0;
         Thread::wait(VEL_PERIOD);
     }
 }
@@ -221,6 +223,28 @@ void velocity_control_thread(){
 }
 
 
+void position_control_thread(){
+    float out;   
+    while(1){
+        out = pos_controller.computeOutput(R, rotations, (float)VEL_PERIOD/1000.0);
+        if (out < 0.0){
+            // lead = 0;
+            if (R > 0.0) lead = -1;
+            else         lead = 1;
+            out = -out;
+        }
+        else {
+            if (R > 0.0) lead = 2;
+            else         lead = -2;
+        }
+
+        pwm_duty_cycle = out;
+        // PRINT_DEBUG("Duty: 0.%03d",(int)(pwm_duty_cycle*1000))
+        Thread::wait(VEL_PERIOD);
+    }
+}
+
+
 void play_music_thread(){
     pwm_duty_cycle = 0.5;
     while(1){
@@ -240,17 +264,18 @@ void terminateControlThreads(){
     // Stop the velocity control threads
     thread_spin.terminate();
     thread_vel_control.terminate();
+    thread_pos_control.terminate();
 
     // Stop the music thread
     thread_music.terminate();
 
     // Stop the measurement threads
     thread_vel_measure.terminate();
-    thread_rot_measure.terminate();
+    thread_pos_measure.terminate();
 
     // Reset the controllers for the next run
     vel_controller.reset();
-    // pos_controller.reset();
+    pos_controller.reset();
 }
 
 
@@ -292,11 +317,13 @@ void controlOutput(){
             }
 
             if(r_cmd){
-                PRINT_DEBUG("Position control not working yet");
-                // if(R < VEL_THRESH)  pos_controller.setParams(KP_VELOCITY_FAST, KI_VELOCITY_FAST, KD_VELOCITY_FAST);
+                // if(R < VEL_THRESH)  pos_controller.setParams(KP_POS, KI_POS, KD_POS);
                 // else                pos_controller.setParams(KP_VELOCITY_SLOW, KI_VELOCITY_SLOW, KD_VELOCITY_SLOW);
+                if (R < 0.0)    lead = -2;
+                else            lead = 2;
                 
-                thread_rot_measure.start(rotations_thread);
+                thread_pos_measure.start(rotations_thread);
+                thread_pos_control.start(position_control_thread);
             }
 
             // Start the thread that spins the motor
@@ -403,7 +430,7 @@ int main() {
     orState = motorHome();
 
     // thread_vel_measure.start(velocity_measure_thread); 
-    // thread_rot_measure.start(rotations_thread);
+    // thread_pos_measure.start(rotations_thread);
 
     PRINT_DEBUG("Starting timer");
     t.start();
@@ -452,6 +479,8 @@ int main() {
                 } 
                 else ++in_idx;
             }
+ 
+            // PRINT_DEBUG("STACK VEL CONTROL USED: %d", thread_vel_control.used_stack());
             // PRINT_DEBUG("%d.%03d",(int)rotations,(int)(rotations*1000)%1000);
             Thread::wait(100);
         }

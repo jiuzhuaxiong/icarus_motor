@@ -37,6 +37,10 @@ const float KP_VELOCITY_SLOW = 0.015;;
 const float KI_VELOCITY_SLOW = 0.000000002;
 const float KD_VELOCITY_SLOW = 0.000024;
 
+const float KP_POS = 0.0025; //0.0025
+const float KI_POS = 0.0011; //0.0555
+const float KD_POS = 0.00028125; //0.000028125
+
 // NOTES DATA
 const uint8_t notes[7] = {142, 127, 239, 213, 190, 179, 159}; // A B C D E F G
 const uint8_t sharps[7] = {134, 127, 225, 201, 179, 169, 150}; // A# B C# D# F F# G#
@@ -89,26 +93,24 @@ volatile int8_t lead = -2;  // 2 for forwards, -2 for backwards
 
 Timer t;
 
-int8_t orState = 0;    //Rotot offset at motor state 0
+int8_t orState = 0;    //Rotor offset at motor state 0
 
 
 // ======================================== THREADS ========================================
 
 Thread thread_diff(osPriorityNormal, 300);
-Thread thread_rot_measure(osPriorityNormal, 500);
+Thread thread_pos_measure(osPriorityNormal, 500);
 Thread thread_vel_measure(osPriorityNormal, 500);
 Thread thread_spin(osPriorityNormal, 500);
-Thread thread_vel_control;
+Thread thread_vel_control(osPriorityNormal, 600);   // Actual used stack size is 528 
+Thread thread_pos_control(osPriorityNormal, 700);
 Thread thread_music(osPriorityNormal, 500);     // Verify stack size
 
-// Thread thread_parser(osPriorityNormal, 700);
-// int pwm_on = 0.5;
 
+// ======================================== CONTROLLERS ========================================
 
-// ======================================== CONTROLLER ========================================
-
-PidController vel_controller(KP_VELOCITY_FAST, KI_VELOCITY_FAST, KD_VELOCITY_FAST); 
-//PidController pos_controller(100.0, 0.0, 0.0 0.0 1.0);
+PidController vel_controller(KP_VELOCITY_FAST,  KI_VELOCITY_FAST, KD_VELOCITY_FAST); 
+PidController pos_controller(KP_POS,            KI_POS,           KD_POS, -1.0, 1.0);
 
 //PID values from ZiglerNicholas [0.021, 0.07636363636363636, 0.0014437500000000002]
 // PidController vel_controller(0.018, 0.109, 0.000742); 
