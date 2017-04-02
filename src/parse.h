@@ -58,27 +58,65 @@ bool parseCmd(char* in, float& r, float& v, bool& r_cmd, bool& v_cmd){
 }
 
 
+// bool parseNote(char* in, uint8_t* note, uint8_t* duration, int8_t& size){
+
+//     if(in[0] == 'T'){
+//         int8_t i=1;
+//         int8_t j=0;
+//         while(i<strlen(in)){
+//             if(in[i+1] == '#'){
+//                 uint8_t idx = in[i] & 0x0F;
+//                 note[j] = sharps[idx-1];
+//                 duration[j] = uint8_t(in[i+2]-'0');
+//                 i+=3;
+//                 j+=1;
+//             }
+//             else if(in[i+1] == '^'){
+//                 uint8_t idx = in[i] & 0x0F;
+//                 note[j] = flats[idx-1];
+//                 duration[j] = uint8_t(in[i+2]-'0');
+//                 i+=3;
+//                 j+=1;
+//             }
+//             else{
+//                 uint8_t idx = in[i] & 0x0F;
+//                 note[j] = notes[idx-1];
+//                 duration[j] = uint8_t(in[i+1]-'0');
+//                 i+=2;
+//                 j+=1;
+//             }
+//         }
+//         //pc.printf("Size: %d\n", j);
+//         size = j;
+//         return true;
+//     }
+//     return false;
+// }
+
+
 bool parseNote(char* in, uint8_t* note, uint8_t* duration, int8_t& size){
     if(in[0] != 'T') return false;
     int8_t i=1, j=0;
     
     while(i<strlen(in)){
+        uint8_t idx = in[i] & 0x0F;
 
         if(in[i+1] == '#'){
+            note[j] = sharps[idx-1];
             duration[j] = uint8_t(in[i+2]-'0');
             i+=3;
         }
         else if(in[i+1] == '^'){
+            note[j] = flats[idx-1];
             duration[j] = uint8_t(in[i+2]-'0');
             i+=3;
         }
         else{
+            note[j] = notes[idx-1];
             duration[j] = uint8_t(in[i+1]-'0');
             i+=2;
         }
         
-        uint8_t idx = in[i] & 0x0F;
-        note[j] = notes[idx-1];
         j+=1;
     }
     //PRINT_DEBUG("Size: %d\n", j);
@@ -88,5 +126,7 @@ bool parseNote(char* in, uint8_t* note, uint8_t* duration, int8_t& size){
 
 
 
+
 #endif
+
 
