@@ -12,7 +12,7 @@ def is_number(s):
 def main():
     out = []
     # f = open("vel.log")
-    f = open("vel.log")
+    f = open("plots/vel.log")
     
     measurement = []
     reference = []

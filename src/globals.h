@@ -16,9 +16,9 @@ const int8_t STATE_MAP[] = {0x07,0x05,0x03,0x04,0x01,0x00,0x02,0x08};
 // Phase lead to make motor spin
 
 // Increment values for the ticks encoder
-const int INC[2] = {1, -1};
+const int8_t INC[2] = {1, -1};
 
-const int VEL_PERIOD = 30;     // in milliseconds
+const uint8_t VEL_PERIOD = 30;     // in milliseconds
 
 
 const float VEL_THRESH = 10.0;
@@ -37,9 +37,13 @@ const float KP_VELOCITY_SLOW = 0.015;;
 const float KI_VELOCITY_SLOW = 0.000000002;
 const float KD_VELOCITY_SLOW = 0.000024;
 
-const float KP_POS = 0.0025; //0.0025
-const float KI_POS = 0.0011; //0.0555
-const float KD_POS = 0.00028125; //0.000028125
+// const float KP_POS = 0.0025; //0.0025
+// const float KI_POS = 0.0011; //0.0555
+// const float KD_POS = 0.00028125; //0.000028125
+const float KP_POS = 0.036; //0.036
+const float KI_POS = 0.035952;//0.136752
+const float KD_POS = 0.00236925;//0.00236925
+
 
 // NOTES DATA
 const uint8_t NOTES[7] = {142, 127, 239, 213, 190, 179, 159}; // A B C D E F G
@@ -48,15 +52,18 @@ const uint8_t FLATS[7] = {150, 134, 245, 225, 201, 190, 190}; //A^ B^ C^ D^ E^ E
 
 const uint16_t PWM_PERIOD = 2000; // in microseconds
 
-// const float ACCELERATION = ;
-// const float MAX_SPEED = 50.0;
+// Acceleration must be in rot/VEL_PERIOD, not rot/s 
+// const float ACCELERATION = 16.0;
+const float ACCELERATION = 20.0;
+const float DECCELERATION = 0.5;
+const float MAX_SPEED = 30.0;
 
 
 // ======================================== GLOBAL VARIABLES ========================================
 
-// Value of the ticks encoder
-volatile int tick = 0;  
 
+volatile float deccelerate_threshold;
+volatile float last_vel_target = 0.0;
 
 volatile float velocity     = 0;
 volatile float rotations    = 0;
@@ -67,15 +74,16 @@ volatile int t_before_fall  = 0;
 volatile int t_now_fall     = 0;
 volatile int t_diff         = 2147482647; // revolutions/sec is 1/t_diff
 
-volatile int t_diff_temp=0;
 
-volatile float    pwm_duty_cycle  = 1;
-// volatile uint16_t pwm_period      = pwm_period_default; // in microseconds
+volatile float pwm_duty_cycle  = 1;
 
+// Value of the ticks encoder
+volatile int tick = 0;  
 volatile int rots = 0;
 volatile int tick_offset = 0;
 volatile int tick_adjust = 0;
 volatile int tick_diff;
+volatile int t_diff_temp=0;
 Mutex tick_adjust_mutex;
 
 // Rotation reference
@@ -113,7 +121,8 @@ Thread thread_music(osPriorityNormal, 500);     // Verify stack size
 // ======================================== CONTROLLERS ========================================
 
 PidController vel_controller(KP_VELOCITY_FAST,  KI_VELOCITY_FAST, KD_VELOCITY_FAST); 
-PidController pos_controller(KP_POS,            KI_POS,           KD_POS, -1.0, 1.0);
+PidController pos_controller(KP_POS,            KI_POS,           KD_POS);
+// PidController pos_controller(KP_POS,            KI_POS,           KD_POS, -1.0, 1.0);
 
 //PID values from ZiglerNicholas [0.021, 0.07636363636363636, 0.0014437500000000002]
 // PidController vel_controller(0.018, 0.109, 0.000742); 

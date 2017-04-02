@@ -105,13 +105,15 @@ void motorOut(int8_t driveState){
 
 
 //Convert photointerrupter inputs to a rotor state
-inline int8_t readRotorState(){
+inline int8_t readRotorState()
+{
     return STATE_MAP[I1 + 2*I2 + 4*I3];
 }
 
 
 //Basic synchronisation routine    
-int8_t motorHome() {
+int8_t motorHome() 
+{
     //Put the motor in drive state 0 and wait for it to stabilise
     PRINT_DEBUG("motor home");
     lead = 2;
@@ -165,9 +167,21 @@ void setPWM(int p){
 }
 
 
-// ======================================== THREADS ========================================
-void spin(){
+float computeVelReference()
+{
+    if ( rotations > -deccelerate_threshold && rotations < deccelerate_threshold )
+        // return fmin(velocity + ACCELERATION * (float)VEL_PERIOD/1000.0, V);
+        return (last_vel_target + ACCELERATION * (float)VEL_PERIOD/1000.0 < V) ? (last_vel_target + ACCELERATION * (float)VEL_PERIOD/1000.0) : V ;
+    else 
+        // return fmax(velocity - ACCELERATION * (float)VEL_PERIOD/1000.0, 0.0);
+        return (last_vel_target - DECCELERATION * (float)VEL_PERIOD/1000.0 > 0.0) ? (last_vel_target - DECCELERATION * (float)VEL_PERIOD/1000.0) : 0.0 ;
+        // return (velocity - ACCELERATION * (float)VEL_PERIOD/1000.0 > 0.0) ? (velocity - ACCELERATION * (float)VEL_PERIOD/1000.0) : 0.0 ;
+}
 
+
+// ======================================== THREADS ========================================
+void spin()
+{
     //Initialise the serial port
     int8_t intState = 0;
     int8_t intStateOld = 0;
@@ -175,12 +189,13 @@ void spin(){
         intState = readRotorState();
         if (intState != intStateOld) {
             intStateOld = intState;
-            motorOut((intState-orState+lead+6)%6); //+6 to make sure the remainder is positive
+            motorOut((intState-origin_state+lead+6)%6); //+6 to make sure the remainder is positive
         }
     }
 }
 
-void tickDiffThread(){
+void tickDiffThread()
+{
     int tick_before;
     while(1){
         tick_before = tick;
@@ -189,7 +204,8 @@ void tickDiffThread(){
     }
 }
 
-void rotationsThread(){
+void rotationsThread()
+{
     while(1){
         rotations = ((float)tick_adjust)/117.0;
         Thread::wait(VEL_PERIOD);
@@ -197,7 +213,8 @@ void rotationsThread(){
 }
 
 
-void velocityMeasureThread(){
+void velocityMeasureThread()
+{
     float curr_velocity = 0;
     while(1){
         // If getting within 35 ticks/VEL_PERIOD, use ticks for velocity
@@ -224,22 +241,26 @@ void velocityControlThread(){
 
 
 void positionControlThread(){
-    float out;   
     while(1){
-        out = pos_controller.computeOutput(R, rotations, (float)VEL_PERIOD/1000.0);
-        if (out < 0.0){
-            // lead = 0;
-            if (R > 0.0) lead = -1;
-            else         lead = 1;
-            out = -out;
-        }
-        else {
-            if (R > 0.0) lead = 2;
-            else         lead = -2;
-        }
+        last_vel_target = computeVelReference();
+        PRINT_DEBUG("POS:  %d.%03d",(int)rotations,(int)(rotations*1000)%1000);
 
-        pwm_duty_cycle = out;
-        // PRINT_DEBUG("Duty: 0.%03d",(int)(pwm_duty_cycle*1000))
+        pwm_duty_cycle = pos_controller.computeOutput( last_vel_target, velocity, (float)VEL_PERIOD/1000.0);
+        
+        // out = pos_controller.computeOutput(R, rotations, (float)VEL_PERIOD/1000.0);
+        // if (out < 0.0){
+        //     // lead = 0;
+        //     if (R > 0.0) lead = -1;
+        //     else         lead = 1;
+        //     out = -out;
+        // }
+        // else {
+        //     if (R > 0.0) lead = 2;
+        //     else         lead = -2;
+        // }
+
+        // pwm_duty_cycle = out;
+        // // PRINT_DEBUG("Duty: 0.%03d",(int)(pwm_duty_cycle*1000))
         Thread::wait(VEL_PERIOD);
     }
 }
@@ -315,13 +336,26 @@ void controlOutput(){
                 thread_vel_measure.start(velocityMeasureThread);
                 thread_vel_control.start(velocityControlThread);
             }
+            else{
+                V = MAX_SPEED;
+            }
 
             if(r_cmd){
+  
                 // if(R < VEL_THRESH)  pos_controller.setParams(KP_POS, KI_POS, KD_POS);
                 // else                pos_controller.setParams(KP_VELOCITY_SLOW, KI_VELOCITY_SLOW, KD_VELOCITY_SLOW);
-                if (R < 0.0)    lead = -2;
-                else            lead = 2;
-                
+                if (R < 0.0){
+                    deccelerate_threshold = R + V*V / (2.0 * DECCELERATION / ((float)VEL_PERIOD/1000.0) );
+                    lead = -2;
+                }    
+                else{
+                    deccelerate_threshold = R - V*V / (2.0 * DECCELERATION / ((float)VEL_PERIOD/1000.0) );
+                    lead = 2;
+                }            
+                last_vel_target = 0.0;
+                PRINT_DEBUG("DECCELERATE_THRESHOLD %d", int(deccelerate_threshold));
+
+                thread_vel_measure.start(velocityMeasureThread);
                 thread_pos_measure.start(rotationsThread);
                 thread_pos_control.start(positionControlThread);
             }
