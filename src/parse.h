@@ -50,6 +50,7 @@ bool parseCmd(char* in, float& r, float& v, bool& r_cmd, bool& v_cmd){
         // Copy the V value in buf_v
         memcpy( buf_v, v_val_start, v_val_len);
         v = atof(buf_v);
+        
         // Make the v positive if r was also specified
         if(v < 0.0 && r_cmd)     v = 0.0 - v;
     }
@@ -83,7 +84,7 @@ bool parseNote(char* in, uint8_t* note, uint8_t* duration, int8_t& size){
         
         j+=1;
     }
-    //PRINT_DEBUG("Size: %d\n", j);
+
     size = j;
     return true;
 }

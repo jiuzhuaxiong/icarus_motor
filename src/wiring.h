@@ -57,7 +57,7 @@ extern PwmOut L3H;
 extern Serial pc;
 
 // Debug logger
-#define DEBUG_LEVEL 1
+#define DEBUG_LEVEL 0
 
 #if DEBUG_LEVEL    
 #define PRINT_DEBUG(...)    printf(__VA_ARGS__);\

@@ -12,7 +12,6 @@ public:
   PidController(float k_p, float k_i, float k_d, float min_out=0.0, float max_out=1.0);
 
   float computeOutput(float reference, float measurement, float dt);
-  // float computeOutput(float reference, float measurement, float dt, float pwm_duty);
 
   void setParams(float k_p, float k_i, float k_d);
 

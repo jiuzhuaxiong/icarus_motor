@@ -1,30 +1,28 @@
+#include <stdlib.h>
+
 #include "mbed.h"
 #include "rtos.h"
-#include <stdlib.h>
 
 #include "parse.h"
 #include "globals.h"
 #include "PidController.h"
 #include "wiring.h"
 
+
 // ======================================== INTERRUPTS ========================================
 
 
-inline void isrRiseCHA() {
+inline void isrRiseCHA() 
+{
     tick += INC[CHB.read()];
     tick_adjust_mutex.lock();
     tick_adjust += INC[CHB.read()];
     tick_adjust_mutex.unlock();
-    // PRINT_DEBUG("Tick: %d", tick);
 }
 
-    // Maybe faster?
-    // int val = CHB.read();
-    // tick += (1>>val);
-    // tick -= (1>>!val);
 
-
-inline void isrRiseI1(){
+inline void isrRiseI1()
+{
     if(I2){
 
         if(!tick_offset){
@@ -33,10 +31,12 @@ inline void isrRiseI1(){
 
         t_now_fall = t.read_us();
         t_diff_temp = t_now_fall-t_before_fall;
-        if(t_diff_temp > 10000){ // Ignore if the duration is too small (implying glitch)
-          t_diff = t_diff_temp;
-          t_before_fall = t_now_fall;
-          rots++;
+
+            // Ignore if the duration is too small (implying glitch)
+        if(t_diff_temp > 10000){ 
+            t_diff = t_diff_temp;
+            t_before_fall = t_now_fall;
+            rots++;
             tick_adjust_mutex.lock();
             tick_adjust = ((rots-1)*117)+tick_offset;
             tick_adjust_mutex.unlock();
@@ -46,17 +46,17 @@ inline void isrRiseI1(){
     }
 }
 
-inline void isrFallI1(){
+inline void isrFallI1()
+{
     if(I2){
 
-        if(!tick_offset){
-            tick_offset=(tick%117+117)%117;
-            // rots++;
-        }
+        if(!tick_offset)   tick_offset=(tick%117+117)%117;
+
         t_now_rise = t.read_us();
         t_diff_temp = t_now_rise-t_before_rise;
 
-        if(t_diff_temp > 10000){ // Ignore if the duration is too small (implying glitch)
+        // Ignore if the duration is too small (implying glitch)
+        if(t_diff_temp > 10000){ 
             t_diff = -t_diff_temp;
             t_before_rise = t_now_rise;
             rots--;
@@ -72,7 +72,8 @@ inline void isrFallI1(){
 // ======================================== FUNCTION DEFINTIONS ========================================
 
 //Set a given drive state
-void motorOut(int8_t driveState){
+void motorOut(int8_t driveState)
+{
     
     //Lookup the output byte from the drive state.
     int8_t driveOut = DRIVE_TABLE[driveState & 0x07];
@@ -89,47 +90,37 @@ void motorOut(int8_t driveState){
     //Then turn on gnd
     // Active Low - i.e. output of 1 means no speed, 0 means highest speed
     if (driveOut & 0x01) L1L.write(1);
-     if (driveOut & 0x02) L1H.write(1-pwm_duty_cycle);
-//    if (driveOut & 0x02) L1H.write(pwm_duty_cycle);
+    if (driveOut & 0x02) L1H.write(1-pwm_duty_cycle);
 
     if (driveOut & 0x04) L2L.write(1);
-     if (driveOut & 0x08) L2H.write(1-pwm_duty_cycle);
-//    if (driveOut & 0x08) L2H.write(pwm_duty_cycle);
+    if (driveOut & 0x08) L2H.write(1-pwm_duty_cycle);
 
     if (driveOut & 0x10) L3L.write(1);
-     if (driveOut & 0x20) L3H.write(1-pwm_duty_cycle);
-//    if (driveOut & 0x20) L3H.write(pwm_duty_cycle);
+    if (driveOut & 0x20) L3H.write(1-pwm_duty_cycle);
 
-    // and turn on Vm
 }
 
 
 //Convert photointerrupter inputs to a rotor state
-inline int8_t readRotorState(){
+inline int8_t readRotorState()
+{
     return STATE_MAP[I1 + 2*I2 + 4*I3];
 }
 
 
 //Basic synchronisation routine    
 int8_t motorHome() {
-    //Put the motor in drive state 0 and wait for it to stabilise
     PRINT_DEBUG("motor home");
     lead = 2;
 
     L2H.write(1);
-    PRINT_DEBUG("L2H Off");
     L3H.write(1);
-    PRINT_DEBUG("L3H Off");
     L1L.write(0);
-    PRINT_DEBUG("L1L Off");
     L2L.write(0);
-    PRINT_DEBUG("L2L Off");
 
 
     L1H.write(0);
-    PRINT_DEBUG("L1H On");
     L3L.write(1);
-    PRINT_DEBUG("L3L On");
 
 
     PRINT_DEBUG("Rotate to home state");
@@ -137,9 +128,9 @@ int8_t motorHome() {
     bool stable = false;
     int prev_state, curr_state;
 
-    PRINT_DEBUG("Reading rotor state");
+    // PRINT_DEBUG("Reading rotor state");
     prev_state = readRotorState();
-    PRINT_DEBUG("Read rotor state");
+    // PRINT_DEBUG("Read rotor state");
 
     while(!stable){
         PRINT_DEBUG("Waiting to stabilise");
@@ -158,7 +149,9 @@ int8_t motorHome() {
     return readRotorState();
 }
 
-void setPWM(int p){
+
+void setPWM(int p)
+{
     L1H.period_us(p);
     L2H.period_us(p);
     L3H.period_us(p);
@@ -166,8 +159,9 @@ void setPWM(int p){
 
 
 // ======================================== THREADS ========================================
-void spin(){
 
+void spin()
+{
     //Initialise the serial port
     int8_t intState = 0;
     int8_t intStateOld = 0;
@@ -175,12 +169,13 @@ void spin(){
         intState = readRotorState();
         if (intState != intStateOld) {
             intStateOld = intState;
-            motorOut((intState-orState+lead+6)%6); //+6 to make sure the remainder is positive
+            motorOut((intState-origin_state+lead+6)%6); //+6 to make sure the remainder is positive
         }
     }
 }
 
-void tickDiffThread(){
+void tickDiffThread()
+{
     int tick_before;
     while(1){
         tick_before = tick;
@@ -189,7 +184,8 @@ void tickDiffThread(){
     }
 }
 
-void rotationsThread(){
+void rotationsThread()
+{
     while(1){
         rotations = ((float)tick_adjust)/117.0;
         Thread::wait(VEL_PERIOD);
@@ -197,7 +193,8 @@ void rotationsThread(){
 }
 
 
-void velocityMeasureThread(){
+void velocityMeasureThread()
+{
     float curr_velocity = 0;
     while(1){
         // If getting within 35 ticks/VEL_PERIOD, use ticks for velocity
@@ -214,7 +211,8 @@ void velocityMeasureThread(){
 }
 
 
-void velocityControlThread(){
+void velocityControlThread()
+{
     while(1){
         pwm_duty_cycle = vel_controller.computeOutput(V, velocity, (float)VEL_PERIOD/1000.0);
         // PRINT_DEBUG("Duty: 0.%03d",(int)(pwm_duty_cycle*1000))
@@ -223,12 +221,12 @@ void velocityControlThread(){
 }
 
 
-void positionControlThread(){
+void positionControlThread()
+{
     float out;   
     while(1){
         out = pos_controller.computeOutput(R, rotations, (float)VEL_PERIOD/1000.0);
         if (out < 0.0){
-            // lead = 0;
             if (R > 0.0) lead = -1;
             else         lead = 1;
             out = -out;
@@ -239,13 +237,13 @@ void positionControlThread(){
         }
 
         pwm_duty_cycle = out;
-        // PRINT_DEBUG("Duty: 0.%03d",(int)(pwm_duty_cycle*1000))
         Thread::wait(VEL_PERIOD);
     }
 }
 
 
-void playMusicThread(){
+void playMusicThread()
+{
     pwm_duty_cycle = 0.5;
     while(1){
         for(int i=0; i<melody_size; i++){
@@ -259,9 +257,12 @@ void playMusicThread(){
 
 // ======================================== CONTROL FUNCTIONS ========================================
 
-
-void terminateControlThreads(){
-    // Stop the velocity control threads
+/**
+ *  Terminate all threads 
+ */
+void terminateControlThreads()
+{
+    // Stop the control threads
     thread_spin.terminate();
     thread_vel_control.terminate();
     thread_pos_control.terminate();
@@ -279,12 +280,15 @@ void terminateControlThreads(){
 }
 
 
-void controlOutput(){
+/**
+ * Start threads relevant only to the received serial input 
+ */
+void controlOutput()
+{
     motorHome();
 
     // Music Command
     if (n_cmd) {
-        // Play music
         thread_spin.start(spin);
         thread_music.start(playMusicThread);
     }
@@ -310,15 +314,12 @@ void controlOutput(){
                 if (V < 0.0)    lead = -2;
                 else            lead = 2;
 
-                PRINT_DEBUG("LEAD %d", lead);
                 // Start velocity control thread
                 thread_vel_measure.start(velocityMeasureThread);
                 thread_vel_control.start(velocityControlThread);
             }
 
             if(r_cmd){
-                // if(R < VEL_THRESH)  pos_controller.setParams(KP_POS, KI_POS, KD_POS);
-                // else                pos_controller.setParams(KP_VELOCITY_SLOW, KI_VELOCITY_SLOW, KD_VELOCITY_SLOW);
                 if (R < 0.0)    lead = -2;
                 else            lead = 2;
                 
@@ -350,14 +351,15 @@ int main() {
     I1.rise(&isrRiseI1);
     I1.fall(&isrFallI1);
 
+    // Start the thread that counts the ticks
     thread_diff.start(tickDiffThread);
 
+    // Get the origin state
     origin_state = motorHome();
 
 
-    PRINT_DEBUG("Starting timer");
+    // PRINT_DEBUG("Starting timer");
     t.start();
-
 
     bool command, r_updated, v_updated;
     float r_tmp, v_tmp;
@@ -371,6 +373,7 @@ int main() {
     while(1){
         command = false;
         
+        // Remember serial inputs until you see a terminating character
         while (!command){
             if (pc.readable()){
                 input[in_idx] = pc.getc();
@@ -388,17 +391,17 @@ int main() {
                 else ++in_idx;
             }
  
-            // PRINT_DEBUG("STACK VEL CONTROL USED: %d", thread_vel_control.used_stack());
-            // PRINT_DEBUG("%d.%03d",(int)rotations,(int)(rotations*1000)%1000);
-            Thread::wait(100);
+            Thread::wait(PARSER_WAIT);
         }
 
         r_updated = false;
         v_updated = false;
 
+        // Check if it is a music command
         if ( parseNote(input, n, d, size) ){
             n_cmd = true;
         }
+        // Check if it is a velocity/position command
         else if( parseCmd(input, r_tmp, v_tmp, r_updated, v_updated) ){
             n_cmd = false;
             r_cmd = r_updated;
