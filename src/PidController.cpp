@@ -87,6 +87,9 @@ float PidController::computeOutput(float reference, float measurement, float dt)
   // convert time to seconds
   // dt *= 1000000;
 
+  reference = fabs(reference);
+  measurement = fabs(measurement);
+
   // compute error:
   float error = reference - measurement;
   
@@ -99,18 +102,18 @@ float PidController::computeOutput(float reference, float measurement, float dt)
   // compute output:
   float output = k_p_ * error + k_i_ * integrated_error_ + k_d_ * de_dt;
 
-  output = fabs(output);
+  // output = fabs(output);
 
   // Check for saturation - anti-reset windup
   if (output > max_out_) {
     // clamp -- and DO NOT INTEGRATE ERROR (anti- reset windup)
     output = max_out_; 
   }
-  // else if (output < min_out_) 
-  // {
-  //   // clamp -- and DO NOT INTEGRATE ERROR (anti- reset windup)
-  //   output = min_out_; 
-  // } 
+  else if (output < min_out_) 
+  {
+    // clamp -- and DO NOT INTEGRATE ERROR (anti- reset windup)
+    output = min_out_; 
+  } 
   else if (error < 0.5*measurement && error > -0.5*measurement)
   {
     integrated_error_ += error * dt; 

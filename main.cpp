@@ -413,7 +413,7 @@ int main() {
 
     // V = 8.0;
     // thread_vel_control.start(velocity_control_thread);
-    thread_spin.start(spin);
+//    thread_spin.start(spin);
 
     // Run a while loop trying to parse     
     parseInput();
