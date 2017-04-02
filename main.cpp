@@ -256,6 +256,10 @@ void terminateControlThreads(){
     thread_spin.terminate();
     thread_vel_control.terminate();
 
+    // Stop the music thread
+    thread_music.terminate();
+
+    // Stop the measurement threads
     thread_v.terminate();
     thread_r.terminate();
 
